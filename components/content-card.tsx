@@ -45,6 +45,7 @@ export const ContentCard = observer(({ block }: ContentCardProps) => {
         {...listeners}
         ref={setNodeRef}
         style={style}
+        data-sortable-item
         data-settling-target={isSettling ? block.id : undefined}
         className={cn(
           "flex w-full text-left group rounded-xl border border-border bg-white p-4 transition-shadow cursor-grab",

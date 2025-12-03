@@ -9,8 +9,9 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DropAnimation,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -33,17 +34,18 @@ export const EditorPage = observer(() => {
     .filter((block) => block.pageId === pageId)
     .sort((a, b) => a.order - b.order);
 
-  // TouchSensor first for better iOS handling
+  // MouseSensor + TouchSensor (not PointerSensor) per dnd-kit best practices
   const sensors = useSensors(
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 150, // Reduced for snappier feel
-        tolerance: 8, // Increased for finger movement
-      },
-    }),
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 10 },
     }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // Hold to drag - distinguishes scroll from drag on iOS
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor),
   );
 
   const dropAnimation: DropAnimation = {

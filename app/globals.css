@@ -129,19 +129,12 @@
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Touch handling for draggable items - prevents scroll/context menu conflicts */
-[data-dnd-kit-sortable-id] {
-  touch-action: none;
+/* Touch handling for sortable items - prevents scroll/context menu conflicts on iOS Safari */
+[data-sortable-item] {
+  touch-action: manipulation;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-}
-
-/* DragOverlay touch handling */
-[data-dnd-kit-drag-overlay] {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  touch-action: none;
 }
 
 /* GPU acceleration for animated overlay elements */
