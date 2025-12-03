@@ -1,9 +1,13 @@
 "use client";
 
-import type { DragEndEvent, DragMoveEvent, DragStartEvent } from "@dnd-kit/core";
+import type {
+  DragEndEvent,
+  DragMoveEvent,
+  DragStartEvent,
+} from "@dnd-kit/core";
 import { useDndMonitor } from "@dnd-kit/core";
 import { useCallback, useEffect, useRef } from "react";
-import { createSpring, animateSpring, type Spring } from "@/lib/spring";
+import { createSpring, type Spring } from "@/lib/spring";
 import { useStore } from "@/lib/stores/store";
 
 interface DragSwingConfig {
@@ -21,6 +25,7 @@ interface DragSwingConfig {
 
 interface UseDragSwingReturn {
   overlayRef: React.RefObject<HTMLDivElement | null>;
+  scaleRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // Utility functions
@@ -31,26 +36,28 @@ const clamp = (value: number, min: number, max: number): number =>
 export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
   const {
     sensitivity = 0.3,
-    maxAngle = 12,
+    maxAngle = 30,
     smoothing = 0.15,
-    returnStiffness = 200,
-    returnDamping = 22,
+    returnStiffness = 250,
+    returnDamping = 25,
   } = config;
 
   const store = useStore();
 
   const overlayRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef<HTMLDivElement>(null);
 
   // Spring for rotation animation
   const springRef = useRef<Spring | null>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
 
   // Position tracking for velocity calculation
   const lastXRef = useRef<number>(0);
   const smoothedVelocityRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
 
-  // Accessibility
-  const prefersReducedMotionRef = useRef<boolean>(false);
+  // Drag state tracking
+  const isDraggingRef = useRef<boolean>(false);
+  const dragLoopRef = useRef<number | null>(null);
 
   // Initialize spring
   useEffect(() => {
@@ -60,21 +67,6 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
     });
   }, [returnStiffness, returnDamping]);
 
-  // Check reduced motion preference
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    prefersReducedMotionRef.current = mql.matches;
-
-    const handleChange = (e: MediaQueryListEvent) => {
-      prefersReducedMotionRef.current = e.matches;
-    };
-
-    mql.addEventListener("change", handleChange);
-    return () => mql.removeEventListener("change", handleChange);
-  }, []);
-
   // Update CSS custom property
   const updateRotation = useCallback((value: number) => {
     if (overlayRef.current) {
@@ -82,27 +74,49 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
     }
   }, []);
 
-  // Start spring animation
-  const startSpringAnimation = useCallback(() => {
-    if (!springRef.current) return;
+  // Continuous physics loop - runs spring simulation every frame
+  const runDragLoop = useCallback(() => {
+    if (!isDraggingRef.current || !springRef.current) return;
 
-    // Cancel any existing animation
-    cleanupRef.current?.();
+    // Calculate delta time
+    const now = performance.now();
+    const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.064);
+    lastFrameTimeRef.current = now;
 
-    cleanupRef.current = animateSpring(springRef.current, updateRotation);
+    // Advance spring physics (momentum preserved!)
+    springRef.current.tick(dt);
+
+    // Update rotation from spring value
+    updateRotation(springRef.current.getValue());
+
+    // Continue loop
+    dragLoopRef.current = requestAnimationFrame(runDragLoop);
   }, [updateRotation]);
 
-  const handleDragStart = useCallback((_event: DragStartEvent) => {
-    // Reset tracking state
-    lastXRef.current = 0;
-    smoothedVelocityRef.current = 0;
+  // Apply initial scale/shadow and start physics loop on mount
+  // (component mounts after drag starts, so handleDragStart won't fire)
+  useEffect(() => {
+    // Initialize drag state and timing
+    isDraggingRef.current = true;
+    lastFrameTimeRef.current = performance.now();
 
-    if (prefersReducedMotionRef.current) return;
+    const cardElement = overlayRef.current?.querySelector(
+      "[data-overlay-card]",
+    ) as HTMLElement | null;
+
+    // Animate scale on the scale wrapper
+    if (scaleRef.current) {
+      scaleRef.current.animate(
+        [{ transform: "scale(1)" }, { transform: "scale(1.04)" }],
+        {
+          duration: 200,
+          easing: "cubic-bezier(.2, 0, 0, 1)",
+          fill: "forwards",
+        },
+      );
+    }
 
     // Animate shadow on the card element
-    const cardElement = overlayRef.current?.querySelector(
-      "[data-overlay-card]"
-    ) as HTMLElement | null;
     if (cardElement) {
       cardElement.animate(
         [
@@ -116,29 +130,30 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
           duration: 200,
           easing: "cubic-bezier(.2, 0, 0, 1)",
           fill: "forwards",
-        }
+        },
       );
     }
 
-    // Animate scale on the wrapper
-    if (overlayRef.current) {
-      overlayRef.current.animate(
-        [
-          { transform: "rotate(0deg) scale(1)" },
-          { transform: "rotate(0deg) scale(1.04)" },
-        ],
-        {
-          duration: 200,
-          easing: "cubic-bezier(.2, 0, 0, 1)",
-          fill: "forwards",
-        }
-      );
-    }
-  }, []);
+    // Start the physics loop
+    dragLoopRef.current = requestAnimationFrame(runDragLoop);
+  }, [runDragLoop]);
+
+  const handleDragStart = useCallback(
+    (_event: DragStartEvent) => {
+      // Reset tracking state
+      lastXRef.current = 0;
+      smoothedVelocityRef.current = 0;
+      isDraggingRef.current = true;
+
+      // Initialize timing and start physics loop
+      lastFrameTimeRef.current = performance.now();
+      dragLoopRef.current = requestAnimationFrame(runDragLoop);
+    },
+    [runDragLoop],
+  );
 
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
-      if (prefersReducedMotionRef.current) return;
       if (!springRef.current) return;
 
       const currentX = event.delta.x;
@@ -147,34 +162,42 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
       const instantVelocity = currentX - lastXRef.current;
       lastXRef.current = currentX;
 
-      // Smooth the velocity using exponential smoothing
+      // Smooth the velocity
       smoothedVelocityRef.current = lerp(
         smoothedVelocityRef.current,
         instantVelocity,
-        smoothing
+        smoothing,
       );
+
+      // Dead zone - ignore tiny velocity to prevent jitter during slow movement
+      const effectiveVelocity =
+        Math.abs(smoothedVelocityRef.current) < 0.3
+          ? 0
+          : smoothedVelocityRef.current;
 
       // Map velocity directly to rotation angle
       const targetRotation = clamp(
-        smoothedVelocityRef.current * sensitivity,
+        -effectiveVelocity * sensitivity,
         -maxAngle,
-        maxAngle
+        maxAngle,
       );
 
-      // Set the target and update immediately
+      // Just set the target - physics loop handles animation with momentum
       springRef.current.setTarget(targetRotation);
-      startSpringAnimation();
     },
-    [sensitivity, maxAngle, smoothing, startSpringAnimation]
+    [sensitivity, maxAngle, smoothing],
   );
 
   const handleDragEnd = useCallback(
     (_event: DragEndEvent) => {
-      if (!springRef.current) return;
+      // Stop the drag loop
+      isDraggingRef.current = false;
+      if (dragLoopRef.current) {
+        cancelAnimationFrame(dragLoopRef.current);
+        dragLoopRef.current = null;
+      }
 
-      // Stop any running spring animation
-      cleanupRef.current?.();
-      cleanupRef.current = null;
+      if (!springRef.current) return;
 
       // Get current rotation value from spring
       const currentRotation = springRef.current.getValue();
@@ -182,7 +205,7 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
       // Capture the overlay position for the settling animation
       // We need to find the actual card element inside the overlay
       const cardElement = overlayRef.current?.querySelector(
-        "[data-overlay-card]"
+        "[data-overlay-card]",
       ) as HTMLElement | null;
       if (cardElement) {
         const rect = cardElement.getBoundingClientRect();
@@ -201,13 +224,15 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
       // Reset tracking state
       smoothedVelocityRef.current = 0;
     },
-    [store]
+    [store],
   );
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      cleanupRef.current?.();
+      if (dragLoopRef.current) {
+        cancelAnimationFrame(dragLoopRef.current);
+      }
     };
   }, []);
 
@@ -218,5 +243,5 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
     onDragCancel: handleDragEnd,
   });
 
-  return { overlayRef };
+  return { overlayRef, scaleRef };
 }

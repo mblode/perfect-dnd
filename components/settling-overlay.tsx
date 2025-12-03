@@ -43,36 +43,72 @@ export const SettlingOverlay = observer(
 
       const targetRect = targetElement.getBoundingClientRect();
 
-      // Spring easing with subtle overshoot
-      const springEasing = "cubic-bezier(.25, .75, .30, 1)";
+      // Spring physics parameters (similar to framer motion defaults)
+      const stiffness = 250;
+      const damping = 25;
+      const mass = 1;
 
-      // Animate position from captured rect to target rect
-      const positionAnimation = containerRef.current.animate(
-        [
-          { transform: `translate(${rect.left}px, ${rect.top}px)` },
-          { transform: `translate(${targetRect.left}px, ${targetRect.top}px)` },
-        ],
-        {
-          duration: 500,
-          easing: springEasing,
-          fill: "forwards",
-        },
+      // Generate spring keyframes
+      const generateSpringKeyframes = (
+        from: number,
+        to: number,
+        steps: number,
+      ): number[] => {
+        const keyframes: number[] = [];
+        const w0 = Math.sqrt(stiffness / mass);
+        const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+        const wd = w0 * Math.sqrt(1 - zeta * zeta);
+        const duration = 0.6; // seconds
+
+        for (let i = 0; i <= steps; i++) {
+          const t = (i / steps) * duration;
+          const envelope = Math.exp(-zeta * w0 * t);
+          const oscillation =
+            envelope * (Math.cos(wd * t) + (zeta * w0 * Math.sin(wd * t)) / wd);
+          const value = to - (to - from) * oscillation;
+          keyframes.push(value);
+        }
+        return keyframes;
+      };
+
+      const steps = 60;
+      const duration = 600;
+
+      // Position spring keyframes
+      const xKeyframes = generateSpringKeyframes(
+        rect.left,
+        targetRect.left,
+        steps,
       );
-
-      // Animate scale and rotation on the wrapper (rotation layer)
-      wrapperRef.current.animate(
-        [
-          { transform: `rotate(${rotation}deg) scale(1.04)` },
-          { transform: "rotate(0deg) scale(1)" },
-        ],
-        {
-          duration: 500,
-          easing: springEasing,
-          fill: "forwards",
-        },
+      const yKeyframes = generateSpringKeyframes(
+        rect.top,
+        targetRect.top,
+        steps,
       );
+      const positionFrames = xKeyframes.map((x, i) => ({
+        transform: `translate(${x}px, ${yKeyframes[i]}px)`,
+      }));
 
-      // Animate shadow fade on the card
+      const positionAnimation = containerRef.current.animate(positionFrames, {
+        duration,
+        easing: "linear",
+        fill: "forwards",
+      });
+
+      // Scale and rotation spring keyframes
+      const scaleKeyframes = generateSpringKeyframes(1.04, 1, steps);
+      const rotationKeyframes = generateSpringKeyframes(rotation, 0, steps);
+      const transformFrames = scaleKeyframes.map((scale, i) => ({
+        transform: `rotate(${rotationKeyframes[i]}deg) scale(${scale})`,
+      }));
+
+      wrapperRef.current.animate(transformFrames, {
+        duration,
+        easing: "linear",
+        fill: "forwards",
+      });
+
+      // Shadow fade (linear, no spring needed)
       const currentShadow =
         "0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 12px 24px -8px rgba(0, 0, 0, 0.1)";
       const noShadow =
@@ -81,8 +117,8 @@ export const SettlingOverlay = observer(
       cardRef.current.animate(
         [{ boxShadow: currentShadow }, { boxShadow: noShadow }],
         {
-          duration: 500,
-          easing: springEasing,
+          duration: 300,
+          easing: "ease-out",
           fill: "forwards",
         },
       );

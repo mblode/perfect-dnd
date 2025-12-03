@@ -10,11 +10,11 @@ interface DragSwingOverlayProps {
 }
 
 export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
-  const { overlayRef } = useDragSwing({
-    sensitivity: 0.3,
-    maxAngle: 12,
-    smoothing: 0.15,
-    returnStiffness: 200,
+  const { overlayRef, scaleRef } = useDragSwing({
+    sensitivity: 0.5,
+    maxAngle: 20,
+    smoothing: 0.12,
+    returnStiffness: 220,
     returnDamping: 22,
   });
 
@@ -39,17 +39,25 @@ export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
       }}
     >
       <div
-        ref={overlayRef}
+        ref={scaleRef}
         style={{
           position: size ? "absolute" : "relative",
           top: 0,
           left: 0,
           width: "100%",
-          transform: "rotate(var(--motion-rotate, 0deg)) scale(1)",
           transformOrigin: "center center",
         }}
       >
-        <DragOverlayCard ref={measureRef} block={block} />
+        <div
+          ref={overlayRef}
+          style={{
+            width: "100%",
+            transform: "rotate(var(--motion-rotate, 0deg))",
+            transformOrigin: "center center",
+          }}
+        >
+          <DragOverlayCard ref={measureRef} block={block} />
+        </div>
       </div>
     </div>
   );
