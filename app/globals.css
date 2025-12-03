@@ -120,3 +120,38 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* iOS Safari mobile drag-and-drop optimizations */
+
+/* Safe area support for notched iPhones */
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Touch handling for draggable items - prevents scroll/context menu conflicts */
+[data-dnd-kit-sortable-id] {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* DragOverlay touch handling */
+[data-dnd-kit-drag-overlay] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+/* GPU acceleration for animated overlay elements */
+[data-overlay-card] {
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Editor container safe area padding */
+.editor-container {
+  padding-bottom: var(--safe-area-inset-bottom);
+}

@@ -102,7 +102,7 @@ export const SettlingOverlay = observer(
         transform: `rotate(${rotationKeyframes[i]}deg) scale(${scale})`,
       }));
 
-      wrapperRef.current.animate(transformFrames, {
+      const transformAnimation = wrapperRef.current.animate(transformFrames, {
         duration,
         easing: "linear",
         fill: "forwards",
@@ -114,7 +114,7 @@ export const SettlingOverlay = observer(
       const noShadow =
         "0 25px 50px -12px rgba(0, 0, 0, 0), 0 12px 24px -8px rgba(0, 0, 0, 0)";
 
-      cardRef.current.animate(
+      const shadowAnimation = cardRef.current.animate(
         [{ boxShadow: currentShadow }, { boxShadow: noShadow }],
         {
           duration: 300,
@@ -125,6 +125,13 @@ export const SettlingOverlay = observer(
 
       positionAnimation.onfinish = () => {
         onAnimationComplete();
+      };
+
+      // Cleanup: cancel animations on unmount to prevent iOS Safari memory leaks
+      return () => {
+        positionAnimation.cancel();
+        transformAnimation.cancel();
+        shadowAnimation.cancel();
       };
     }, [rect, rotation, block.id, onAnimationComplete]);
 

@@ -33,12 +33,16 @@ export const EditorPage = observer(() => {
     .filter((block) => block.pageId === pageId)
     .sort((a, b) => a.order - b.order);
 
+  // TouchSensor first for better iOS handling
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 5 },
+      activationConstraint: {
+        delay: 150, // Reduced for snappier feel
+        tolerance: 8, // Increased for finger movement
+      },
+    }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 10 },
     }),
   );
 
@@ -91,6 +95,11 @@ export const EditorPage = observer(() => {
     store.clearDropTarget();
   };
 
+  const handleDragCancel = () => {
+    store.clearDropTarget();
+    store.endDrag();
+  };
+
   const handleSettlingComplete = () => {
     store.endDrag();
   };
@@ -107,6 +116,7 @@ export const EditorPage = observer(() => {
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="flex min-h-screen w-full flex-col">
         <main className="flex-1">
