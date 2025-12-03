@@ -108,7 +108,7 @@ export const EditorPage = observer(() => {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex min-h-screen w-full flex-col bg-[#FBFAF9] text-slate-900">
+      <div className="flex min-h-screen w-full flex-col">
         <main className="flex-1">
           <div className="mx-auto">
             <div className="flex gap-4 p-4">

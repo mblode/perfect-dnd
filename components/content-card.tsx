@@ -49,7 +49,7 @@ export const ContentCard = observer(({ block }: ContentCardProps) => {
         className={cn(
           "flex w-full text-left group rounded-xl border border-border bg-white p-4 transition-shadow cursor-grab",
           {
-            "border-slate-200 bg-slate-50 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] z-0":
+            "bg-muted/30 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] z-0":
               showPlaceholder,
             "z-10": !showPlaceholder,
           },
