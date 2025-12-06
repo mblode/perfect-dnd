@@ -1,4 +1,4 @@
-import { EditorPage } from "@/components/editor-page";
+import { EditorPage } from "@/components/dnd-kit/dnd-kit-page";
 
 export default function Page() {
   return <EditorPage />;

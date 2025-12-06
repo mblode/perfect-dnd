@@ -126,6 +126,7 @@ export class Store {
 
   // Called when drop animation completes
   endDrag() {
+    this.activeBlockId = null;
     this.settlingBlockId = null;
     this.dropAnimationRect = null;
     this.dropAnimationRotation = 0;
