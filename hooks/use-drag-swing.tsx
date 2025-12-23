@@ -7,116 +7,187 @@ import type {
 } from "@dnd-kit/core";
 import { useDndMonitor } from "@dnd-kit/core";
 import { useCallback, useEffect, useRef } from "react";
-import { createSpring, type Spring } from "@/lib/spring";
+import {
+  calculateVelocityFromHistory,
+  createLiveSpring,
+  type PointWithTimestamp,
+  SCALE_SPRING_CONFIG,
+  SPRING_DEFAULTS,
+  VELOCITY_WINDOW_MS,
+  velocityToRotation,
+} from "@/lib/spring";
+import { getPointerPosition } from "@/lib/dnd/pointer-tracker";
 import { useStore } from "@/lib/stores/store";
-
-interface DragSwingConfig {
-  /** How much velocity affects rotation (deg per px/frame). Default: 0.3 */
-  sensitivity?: number;
-  /** Maximum rotation in degrees. Default: 12 */
-  maxAngle?: number;
-  /** Velocity smoothing (0-1, higher = more responsive, lower = heavier feel). Default: 0.15 */
-  smoothing?: number;
-  /** Spring stiffness for return animation. Default: 200 */
-  returnStiffness?: number;
-  /** Spring damping for return animation. Default: 22 */
-  returnDamping?: number;
-}
 
 interface UseDragSwingReturn {
   overlayRef: React.RefObject<HTMLDivElement | null>;
   scaleRef: React.RefObject<HTMLDivElement | null>;
 }
 
-// Utility functions
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(Math.max(value, min), max);
-
-export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
-  const {
-    sensitivity = 0.3,
-    maxAngle = 30,
-    smoothing = 0.15,
-    returnStiffness = 250,
-    returnDamping = 25,
-  } = config;
-
+export function useDragSwing(): UseDragSwingReturn {
   const store = useStore();
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef<HTMLDivElement>(null);
 
-  // Spring for rotation animation
-  const springRef = useRef<Spring | null>(null);
+  const springAnimationFrameRef = useRef<number | null>(null);
+  const positionHistoryRef = useRef<PointWithTimestamp[]>([]);
+  const isDraggingRef = useRef(false);
+  const isSettlingRef = useRef(false);
+  const settleStartTimeRef = useRef<number | null>(null);
+  const settleFrameCountRef = useRef(0);
+  const dragStartPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const currentRotationRef = useRef(0);
+  const currentScaleRef = useRef(1);
 
-  // Position tracking for velocity calculation
-  const lastXRef = useRef<number>(0);
-  const smoothedVelocityRef = useRef<number>(0);
-  const lastFrameTimeRef = useRef<number>(0);
+  // Live spring instances for continuous animation (like Framer Motion's useSpring)
+  const rotationSpringRef = useRef(
+    createLiveSpring({
+      stiffness: SPRING_DEFAULTS.stiffness,
+      damping: SPRING_DEFAULTS.damping,
+      mass: SPRING_DEFAULTS.mass,
+      restSpeed: 2,
+      restDistance: 0.5,
+    }),
+  );
+  const scaleSpringRef = useRef(
+    createLiveSpring({
+      stiffness: SCALE_SPRING_CONFIG.stiffness,
+      damping: SCALE_SPRING_CONFIG.damping,
+      restSpeed: SCALE_SPRING_CONFIG.restSpeed,
+      restDistance: 0.001, // Scale changes by 0.02, need tiny restDistance (not 0.5 default)
+    }),
+  );
 
-  // Drag state tracking
-  const isDraggingRef = useRef<boolean>(false);
-  const dragLoopRef = useRef<number | null>(null);
-
-  // Initialize spring
-  useEffect(() => {
-    springRef.current = createSpring({
-      stiffness: returnStiffness,
-      damping: returnDamping,
-    });
-  }, [returnStiffness, returnDamping]);
-
-  // Update CSS custom property
+  // Update CSS custom properties
   const updateRotation = useCallback((value: number) => {
     if (overlayRef.current) {
       overlayRef.current.style.setProperty("--motion-rotate", `${value}deg`);
     }
   }, []);
 
-  // Continuous physics loop - runs spring simulation every frame
-  const runDragLoop = useCallback(() => {
-    if (!isDraggingRef.current || !springRef.current) return;
+  const updateScale = useCallback((value: number) => {
+    if (scaleRef.current) {
+      scaleRef.current.style.setProperty("--motion-scale", `${value}`);
+    }
+  }, []);
 
-    // Calculate delta time
-    const now = performance.now();
-    const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.064);
-    lastFrameTimeRef.current = now;
+  /**
+   * Start continuous spring animation loop
+   * This matches swing-card.tsx useSpring behavior - continuously smoothing values
+   */
+  const startSpringAnimation = useCallback(() => {
+    if (springAnimationFrameRef.current !== null) {
+      return;
+    }
 
-    // Advance spring physics (momentum preserved!)
-    springRef.current.tick(dt);
+    const rotationSpring = rotationSpringRef.current;
+    const scaleSpring = scaleSpringRef.current;
 
-    // Update rotation from spring value
-    updateRotation(springRef.current.getValue());
+    // Initialize springs with current state
+    rotationSpring.setCurrent(currentRotationRef.current);
+    scaleSpring.setCurrent(currentScaleRef.current);
 
-    // Continue loop
-    dragLoopRef.current = requestAnimationFrame(runDragLoop);
-  }, [updateRotation]);
+    // Safety guard: maximum settling duration (2 seconds at 60fps = 120 frames)
+    // This prevents infinite loops if springs never settle
+    const MAX_SETTLE_FRAMES = 120;
+    const MAX_SETTLE_DURATION_MS = 2000;
+
+    const animate = () => {
+      const now = performance.now();
+      if (isSettlingRef.current) {
+        if (settleStartTimeRef.current === null) {
+          settleStartTimeRef.current = now;
+          settleFrameCountRef.current = 0;
+        }
+        settleFrameCountRef.current += 1;
+        const settleDuration = now - settleStartTimeRef.current;
+
+        // Safety check: force exit if settling runs too long
+        if (
+          settleFrameCountRef.current > MAX_SETTLE_FRAMES ||
+          settleDuration > MAX_SETTLE_DURATION_MS
+        ) {
+          isSettlingRef.current = false;
+          settleStartTimeRef.current = null;
+          settleFrameCountRef.current = 0;
+          rotationSpring.setCurrent(0);
+          rotationSpring.setTarget(0);
+          scaleSpring.setCurrent(1);
+          scaleSpring.setTarget(1);
+          updateRotation(0);
+          updateScale(1);
+          springAnimationFrameRef.current = null;
+          return;
+        }
+      }
+
+      const rotationState = rotationSpring.step(now);
+      const scaleState = scaleSpring.step(now);
+
+      currentRotationRef.current = rotationState.value;
+      currentScaleRef.current = scaleState.value;
+      updateRotation(rotationState.value);
+      updateScale(scaleState.value);
+
+      // Check if ALL springs are done
+      const allSpringsDone = rotationState.done && scaleState.done;
+
+      // Continue animation while dragging or if settling after drag
+      if (
+        isDraggingRef.current ||
+        (isSettlingRef.current && !allSpringsDone)
+      ) {
+        springAnimationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        isSettlingRef.current = false;
+        settleStartTimeRef.current = null;
+        settleFrameCountRef.current = 0;
+        springAnimationFrameRef.current = null;
+      }
+    };
+
+    springAnimationFrameRef.current = requestAnimationFrame(animate);
+  }, [updateRotation, updateScale]);
+
+  /**
+   * Update spring targets during drag
+   * This matches swing-card.tsx behavior where rotateRaw.set() updates the target
+   */
+  const updateSpringTargets = useCallback(
+    (targetRotation: number, targetScale: number) => {
+      rotationSpringRef.current.setTarget(targetRotation);
+      scaleSpringRef.current.setTarget(targetScale);
+    },
+    [],
+  );
 
   // Apply initial scale/shadow and start physics loop on mount
   // (component mounts after drag starts, so handleDragStart won't fire)
   useEffect(() => {
-    // Initialize drag state and timing
     isDraggingRef.current = true;
-    lastFrameTimeRef.current = performance.now();
+    isSettlingRef.current = false;
+    positionHistoryRef.current = [];
+    settleStartTimeRef.current = null;
+    settleFrameCountRef.current = 0;
 
+    currentRotationRef.current = 0;
+    currentScaleRef.current = 1;
+    updateRotation(0);
+    updateScale(1);
+
+    // Set scale spring target directly (setState is async, so we can't rely on state being updated)
+    // This matches swing-card.tsx handleDragStart: scaleRaw.set(1.04)
+    scaleSpringRef.current.setTarget(1.04);
+
+    // Start continuous spring animation (matches swing-card.tsx useSpring behavior)
+    startSpringAnimation();
+
+    // Animate shadow on the card element
     const cardElement = overlayRef.current?.querySelector(
       "[data-overlay-card]",
     ) as HTMLElement | null;
 
-    // Animate scale on the scale wrapper
-    if (scaleRef.current) {
-      scaleRef.current.animate(
-        [{ transform: "scale(1)" }, { transform: "scale(1.04)" }],
-        {
-          duration: 200,
-          easing: "cubic-bezier(.2, 0, 0, 1)",
-          fill: "forwards",
-        },
-      );
-    }
-
-    // Animate shadow on the card element
     if (cardElement) {
       cardElement.animate(
         [
@@ -133,77 +204,141 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
         },
       );
     }
-
-    // Start the physics loop
-    dragLoopRef.current = requestAnimationFrame(runDragLoop);
-  }, [runDragLoop]);
+  }, [startSpringAnimation, updateRotation, updateScale]);
 
   const handleDragStart = useCallback(
-    (_event: DragStartEvent) => {
-      // Reset tracking state
-      lastXRef.current = 0;
-      smoothedVelocityRef.current = 0;
-      isDraggingRef.current = true;
+    (event: DragStartEvent) => {
+      const activatorEvent = event.activatorEvent;
 
-      // Initialize timing and start physics loop
-      lastFrameTimeRef.current = performance.now();
-      dragLoopRef.current = requestAnimationFrame(runDragLoop);
+      const trackedPointer = getPointerPosition();
+      if (trackedPointer) {
+        dragStartPointerRef.current = trackedPointer;
+      } else {
+        let pointerX: number | null = null;
+        let pointerY: number | null = null;
+        if (activatorEvent instanceof MouseEvent) {
+          pointerX = activatorEvent.clientX;
+          pointerY = activatorEvent.clientY;
+        } else if (
+          activatorEvent instanceof TouchEvent &&
+          activatorEvent.touches.length > 0
+        ) {
+          pointerX = activatorEvent.touches[0].clientX;
+          pointerY = activatorEvent.touches[0].clientY;
+        } else if (
+          (activatorEvent as unknown as PointerEvent).clientX !== undefined
+        ) {
+          pointerX = (activatorEvent as unknown as PointerEvent).clientX;
+          pointerY = (activatorEvent as unknown as PointerEvent).clientY;
+        }
+
+        dragStartPointerRef.current =
+          pointerX !== null && pointerY !== null
+            ? { x: pointerX, y: pointerY }
+            : null;
+      }
+
+      positionHistoryRef.current = [];
+      isDraggingRef.current = true;
+      isSettlingRef.current = false;
+      settleStartTimeRef.current = null;
+      settleFrameCountRef.current = 0;
+
+      // Set scale spring target directly (setState is async, so we can't rely on state being updated)
+      // This matches swing-card.tsx handleDragStart: scaleRaw.set(1.04)
+      scaleSpringRef.current.setTarget(1.04);
+
+      // Start continuous spring animation (matches swing-card.tsx useSpring behavior)
+      startSpringAnimation();
     },
-    [runDragLoop],
+    [startSpringAnimation],
   );
 
+  /**
+   * onDrag event handler
+   * Uses Bento-style velocity-based rotation with 100ms sliding window
+   */
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
-      if (!springRef.current) return;
+      const now = performance.now();
 
-      const currentX = event.delta.x;
+      let pointerX = 0;
+      let pointerY = 0;
+      const dragStartPointer = dragStartPointerRef.current;
+      const trackedPointer = getPointerPosition();
 
-      // Instantaneous velocity = position change since last frame
-      const instantVelocity = currentX - lastXRef.current;
-      lastXRef.current = currentX;
+      if (trackedPointer) {
+        pointerX = trackedPointer.x;
+        pointerY = trackedPointer.y;
+      } else if (dragStartPointer) {
+        pointerX = dragStartPointer.x + event.delta.x;
+        pointerY = dragStartPointer.y + event.delta.y;
+      } else {
+        const activatorEvent = event.activatorEvent;
+        // Get pointer position from event for velocity tracking
+        // This matches swing-card.tsx which uses info.point.x/y (pointer position)
+        if (activatorEvent instanceof MouseEvent) {
+          pointerX = activatorEvent.clientX;
+          pointerY = activatorEvent.clientY;
+        } else if (
+          activatorEvent instanceof TouchEvent &&
+          activatorEvent.touches.length > 0
+        ) {
+          pointerX = activatorEvent.touches[0].clientX;
+          pointerY = activatorEvent.touches[0].clientY;
+        } else if (
+          (activatorEvent as unknown as PointerEvent).clientX !== undefined
+        ) {
+          pointerX = (activatorEvent as unknown as PointerEvent).clientX;
+          pointerY = (activatorEvent as unknown as PointerEvent).clientY;
+        }
+      }
 
-      // Smooth the velocity
-      smoothedVelocityRef.current = lerp(
-        smoothedVelocityRef.current,
-        instantVelocity,
-        smoothing,
+      // Track pointer position history for velocity calculation (100ms sliding window)
+      let positionHistory: PointWithTimestamp[] = [
+        ...positionHistoryRef.current,
+        {
+          x: pointerX,
+          y: pointerY,
+          timestamp: now,
+        },
+      ];
+
+      // Keep only last 100ms of history
+      positionHistory = positionHistory.filter(
+        (entry) => now - entry.timestamp < VELOCITY_WINDOW_MS,
       );
 
-      // Dead zone - ignore tiny velocity to prevent jitter during slow movement
-      const effectiveVelocity =
-        Math.abs(smoothedVelocityRef.current) < 0.3
-          ? 0
-          : smoothedVelocityRef.current;
+      // Calculate velocity from history using Bento algorithm
+      const velocity = calculateVelocityFromHistory(positionHistory);
 
-      // Map velocity directly to rotation angle
-      const targetRotation = clamp(
-        -effectiveVelocity * sensitivity,
-        -maxAngle,
-        maxAngle,
-      );
+      // Convert velocity to rotation using Bento formula
+      // INVERTED: drag right = tilt left (negative rotation) due to inertia
+      const targetRotation = velocityToRotation(velocity.x);
 
-      // Just set the target - physics loop handles animation with momentum
-      springRef.current.setTarget(targetRotation);
+      // Update spring targets - spring will smoothly animate toward targetRotation
+      // This matches swing-card.tsx: rotateRaw.set(targetRotation)
+      updateSpringTargets(targetRotation, 1.04);
+
+      positionHistoryRef.current = positionHistory;
     },
-    [sensitivity, maxAngle, smoothing],
+    [updateSpringTargets],
   );
 
   const handleDragEnd = useCallback(
     (_event: DragEndEvent) => {
-      // Stop the drag loop
       isDraggingRef.current = false;
-      if (dragLoopRef.current) {
-        cancelAnimationFrame(dragLoopRef.current);
-        dragLoopRef.current = null;
-      }
+      dragStartPointerRef.current = null;
 
-      if (!springRef.current) return;
+      // Set spring targets to 0 (rotation) and 1 (scale)
+      // This matches swing-card.tsx handleDragEnd: rotateRaw.set(0), scaleRaw.set(1)
+      updateSpringTargets(0, 1);
 
-      // Get current rotation value from spring
-      const currentRotation = springRef.current.getValue();
+      // Keep the spring loop alive while we settle back to rest.
+      isSettlingRef.current = true;
+      settleStartTimeRef.current = performance.now();
+      settleFrameCountRef.current = 0;
 
-      // Capture the overlay position for the settling animation
-      // We need to find the actual card element inside the overlay
       const cardElement = overlayRef.current?.querySelector(
         "[data-overlay-card]",
       ) as HTMLElement | null;
@@ -218,20 +353,21 @@ export function useDragSwing(config: DragSwingConfig = {}): UseDragSwingReturn {
           width: rect.width / scale,
           height: rect.height / scale,
         };
-        store.startSettling(unscaledRect, currentRotation);
+        store.startSettling(unscaledRect, currentRotationRef.current);
       }
 
-      // Reset tracking state
-      smoothedVelocityRef.current = 0;
+      positionHistoryRef.current = [];
+      startSpringAnimation();
     },
-    [store],
+    [startSpringAnimation, store, updateSpringTargets],
   );
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (dragLoopRef.current) {
-        cancelAnimationFrame(dragLoopRef.current);
+      if (springAnimationFrameRef.current) {
+        cancelAnimationFrame(springAnimationFrameRef.current);
+        springAnimationFrameRef.current = null;
       }
     };
   }, []);

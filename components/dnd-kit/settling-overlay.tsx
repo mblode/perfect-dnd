@@ -2,6 +2,12 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { observer } from "mobx-react-lite";
+import {
+  createLiveSpring,
+  POSITION_SPRING_CONFIG,
+  SCALE_SPRING_CONFIG,
+  SPRING_DEFAULTS,
+} from "@/lib/spring";
 import { useStore } from "@/lib/stores/store";
 import type { BlockData } from "@/types/block";
 import { CardInner } from "./card-inner";
@@ -17,6 +23,7 @@ export const SettlingOverlay = observer(
     const containerRef = useRef<HTMLDivElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
+    const animationFrameRef = useRef<number | null>(null);
 
     const rect = store.dropAnimationRect;
     const rotation = store.dropAnimationRotation;
@@ -43,70 +50,30 @@ export const SettlingOverlay = observer(
 
       const targetRect = targetElement.getBoundingClientRect();
 
-      // Spring physics parameters (similar to framer motion defaults)
-      const stiffness = 250;
-      const damping = 25;
-      const mass = 1;
-
-      // Generate spring keyframes
-      const generateSpringKeyframes = (
-        from: number,
-        to: number,
-        steps: number,
-      ): number[] => {
-        const keyframes: number[] = [];
-        const w0 = Math.sqrt(stiffness / mass);
-        const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-        const wd = w0 * Math.sqrt(1 - zeta * zeta);
-        const duration = 0.6; // seconds
-
-        for (let i = 0; i <= steps; i++) {
-          const t = (i / steps) * duration;
-          const envelope = Math.exp(-zeta * w0 * t);
-          const oscillation =
-            envelope * (Math.cos(wd * t) + (zeta * w0 * Math.sin(wd * t)) / wd);
-          const value = to - (to - from) * oscillation;
-          keyframes.push(value);
-        }
-        return keyframes;
-      };
-
-      const steps = 60;
-      const duration = 600;
-
-      // Position spring keyframes
-      const xKeyframes = generateSpringKeyframes(
-        rect.left,
-        targetRect.left,
-        steps,
-      );
-      const yKeyframes = generateSpringKeyframes(
-        rect.top,
-        targetRect.top,
-        steps,
-      );
-      const positionFrames = xKeyframes.map((x, i) => ({
-        transform: `translate(${x}px, ${yKeyframes[i]}px)`,
-      }));
-
-      const positionAnimation = containerRef.current.animate(positionFrames, {
-        duration,
-        easing: "linear",
-        fill: "forwards",
+      const xSpring = createLiveSpring(POSITION_SPRING_CONFIG);
+      const ySpring = createLiveSpring(POSITION_SPRING_CONFIG);
+      const rotationSpring = createLiveSpring({
+        stiffness: SPRING_DEFAULTS.stiffness,
+        damping: SPRING_DEFAULTS.damping,
+        mass: SPRING_DEFAULTS.mass,
+        restSpeed: 2,
+        restDistance: 0.5,
+      });
+      const scaleSpring = createLiveSpring({
+        stiffness: SCALE_SPRING_CONFIG.stiffness,
+        damping: SCALE_SPRING_CONFIG.damping,
+        restSpeed: SCALE_SPRING_CONFIG.restSpeed,
+        restDistance: 0.001,
       });
 
-      // Scale and rotation spring keyframes
-      const scaleKeyframes = generateSpringKeyframes(1.04, 1, steps);
-      const rotationKeyframes = generateSpringKeyframes(rotation, 0, steps);
-      const transformFrames = scaleKeyframes.map((scale, i) => ({
-        transform: `rotate(${rotationKeyframes[i]}deg) scale(${scale})`,
-      }));
-
-      const transformAnimation = wrapperRef.current.animate(transformFrames, {
-        duration,
-        easing: "linear",
-        fill: "forwards",
-      });
+      xSpring.setCurrent(rect.left);
+      xSpring.setTarget(targetRect.left);
+      ySpring.setCurrent(rect.top);
+      ySpring.setTarget(targetRect.top);
+      rotationSpring.setCurrent(rotation);
+      rotationSpring.setTarget(0);
+      scaleSpring.setCurrent(1.04);
+      scaleSpring.setTarget(1);
 
       // Shadow fade (linear, no spring needed)
       const currentShadow =
@@ -117,20 +84,83 @@ export const SettlingOverlay = observer(
       const shadowAnimation = cardRef.current.animate(
         [{ boxShadow: currentShadow }, { boxShadow: noShadow }],
         {
-          duration: 300,
+          duration: 200,
           easing: "ease-out",
           fill: "forwards",
         },
       );
 
-      positionAnimation.onfinish = () => {
+      let settleStartTime: number | null = null;
+      let settleFrameCount = 0;
+      let didComplete = false;
+      const MAX_SETTLE_FRAMES = 120;
+      const MAX_SETTLE_DURATION_MS = 2000;
+
+      const finish = () => {
+        if (didComplete) return;
+        didComplete = true;
         onAnimationComplete();
       };
 
+      const setFinalStyles = () => {
+        if (containerRef.current) {
+          containerRef.current.style.transform = `translate(${targetRect.left}px, ${targetRect.top}px)`;
+        }
+        if (wrapperRef.current) {
+          wrapperRef.current.style.transform = "rotate(0deg) scale(1)";
+        }
+      };
+
+      const animate = () => {
+        const now = performance.now();
+        if (settleStartTime === null) {
+          settleStartTime = now;
+        }
+        settleFrameCount += 1;
+
+        if (
+          settleFrameCount > MAX_SETTLE_FRAMES ||
+          now - settleStartTime > MAX_SETTLE_DURATION_MS
+        ) {
+          setFinalStyles();
+          finish();
+          animationFrameRef.current = null;
+          return;
+        }
+
+        const xState = xSpring.step(now);
+        const yState = ySpring.step(now);
+        const rotationState = rotationSpring.step(now);
+        const scaleState = scaleSpring.step(now);
+
+        if (containerRef.current) {
+          containerRef.current.style.transform = `translate(${xState.value}px, ${yState.value}px)`;
+        }
+        if (wrapperRef.current) {
+          wrapperRef.current.style.transform = `rotate(${rotationState.value}deg) scale(${scaleState.value})`;
+        }
+
+        const allDone =
+          xState.done && yState.done && rotationState.done && scaleState.done;
+
+        if (allDone) {
+          setFinalStyles();
+          finish();
+          animationFrameRef.current = null;
+          return;
+        }
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+
       // Cleanup: cancel animations on unmount to prevent iOS Safari memory leaks
       return () => {
-        positionAnimation.cancel();
-        transformAnimation.cancel();
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
         shadowAnimation.cancel();
       };
     }, [rect, rotation, block.id, onAnimationComplete]);

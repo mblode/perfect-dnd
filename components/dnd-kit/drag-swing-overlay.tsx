@@ -10,13 +10,7 @@ interface DragSwingOverlayProps {
 }
 
 export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
-  const { overlayRef, scaleRef } = useDragSwing({
-    sensitivity: 0.5,
-    maxAngle: 20,
-    smoothing: 0.12,
-    returnStiffness: 220,
-    returnDamping: 22,
-  });
+  const { overlayRef, scaleRef } = useDragSwing();
 
   const measureRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(
@@ -45,6 +39,7 @@ export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
           top: 0,
           left: 0,
           width: "100%",
+          transform: "scale(var(--motion-scale, 1))",
           transformOrigin: "center center",
         }}
       >
