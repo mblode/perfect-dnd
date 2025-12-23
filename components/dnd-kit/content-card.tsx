@@ -33,9 +33,10 @@ export const ContentCard = observer(({ block }: ContentCardProps) => {
   // isDragging from dnd-kit resets immediately, but we want to wait for animation
   const showPlaceholder = isActiveInStore || isSettling;
 
+  const shouldDisableMotion = isDragging || isSettling;
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: shouldDisableMotion ? undefined : CSS.Transform.toString(transform),
+    transition: shouldDisableMotion ? undefined : transition,
   };
 
   return (

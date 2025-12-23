@@ -9,8 +9,6 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DropAnimation,
-  MouseSensor,
-  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -21,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { observer } from "mobx-react-lite";
+import { TrackedMouseSensor, TrackedTouchSensor } from "@/lib/dnd/tracked-sensors";
 import { useStore } from "@/lib/stores/store";
 import { DragSwingOverlay } from "./drag-swing-overlay";
 import { ContentCard } from "./content-card";
@@ -36,10 +35,10 @@ export const EditorPage = observer(() => {
 
   // MouseSensor + TouchSensor (not PointerSensor) per dnd-kit best practices
   const sensors = useSensors(
-    useSensor(MouseSensor, {
+    useSensor(TrackedMouseSensor, {
       activationConstraint: { distance: 10 },
     }),
-    useSensor(TouchSensor, {
+    useSensor(TrackedTouchSensor, {
       activationConstraint: {
         delay: 250, // Hold to drag - distinguishes scroll from drag on iOS
         tolerance: 5,
