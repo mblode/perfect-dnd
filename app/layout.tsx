@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Linktree Editor",
-  description: "Visual editor for Linktree pages",
+  title: "Perfect DnD",
+  description: "Drag and drop made simple",
 };
 
 export const viewport: Viewport = {

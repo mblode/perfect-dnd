@@ -6,14 +6,13 @@ import type {
   DragStartEvent,
 } from "@dnd-kit/core";
 import { useDndMonitor } from "@dnd-kit/core";
+import { autorun } from "mobx";
 import { useCallback, useEffect, useRef } from "react";
 import {
   calculateVelocityFromHistory,
   createLiveSpring,
+  type DragSwingSettings,
   type PointWithTimestamp,
-  SCALE_SPRING_CONFIG,
-  SPRING_DEFAULTS,
-  VELOCITY_WINDOW_MS,
   velocityToRotation,
 } from "@/lib/spring";
 import { getPointerPosition } from "@/lib/dnd/pointer-tracker";
@@ -23,6 +22,8 @@ interface UseDragSwingReturn {
   overlayRef: React.RefObject<HTMLDivElement | null>;
   scaleRef: React.RefObject<HTMLDivElement | null>;
 }
+
+const REST_SCALE = 1;
 
 export function useDragSwing(): UseDragSwingReturn {
   const store = useStore();
@@ -39,25 +40,57 @@ export function useDragSwing(): UseDragSwingReturn {
   const dragStartPointerRef = useRef<{ x: number; y: number } | null>(null);
   const currentRotationRef = useRef(0);
   const currentScaleRef = useRef(1);
+  const settingsRef = useRef<DragSwingSettings>(store.dragSwingSettings);
 
   // Live spring instances for continuous animation (like Framer Motion's useSpring)
   const rotationSpringRef = useRef(
     createLiveSpring({
-      stiffness: SPRING_DEFAULTS.stiffness,
-      damping: SPRING_DEFAULTS.damping,
-      mass: SPRING_DEFAULTS.mass,
-      restSpeed: 2,
-      restDistance: 0.5,
+      stiffness: store.dragSwingSettings.rotationSpring.stiffness,
+      damping: store.dragSwingSettings.rotationSpring.damping,
+      mass: store.dragSwingSettings.rotationSpring.mass,
+      restSpeed: store.dragSwingSettings.rotationSpring.restSpeed,
+      restDistance: store.dragSwingSettings.rotationSpring.restDistance,
     }),
   );
   const scaleSpringRef = useRef(
     createLiveSpring({
-      stiffness: SCALE_SPRING_CONFIG.stiffness,
-      damping: SCALE_SPRING_CONFIG.damping,
-      restSpeed: SCALE_SPRING_CONFIG.restSpeed,
-      restDistance: 0.001, // Scale changes by 0.02, need tiny restDistance (not 0.5 default)
+      stiffness: store.dragSwingSettings.scaleSpring.stiffness,
+      damping: store.dragSwingSettings.scaleSpring.damping,
+      restSpeed: store.dragSwingSettings.scaleSpring.restSpeed,
+      restDistance: store.dragSwingSettings.scaleSpring.restDistance,
     }),
   );
+
+  useEffect(() => {
+    const dispose = autorun(() => {
+      const settings = store.dragSwingSettings;
+      const nextSettings: DragSwingSettings = {
+        velocityWindowMs: settings.velocityWindowMs,
+        velocityScale: settings.velocityScale,
+        maxRotation: settings.maxRotation,
+        dragScale: settings.dragScale,
+        rotationSpring: {
+          stiffness: settings.rotationSpring.stiffness,
+          damping: settings.rotationSpring.damping,
+          mass: settings.rotationSpring.mass,
+          restSpeed: settings.rotationSpring.restSpeed,
+          restDistance: settings.rotationSpring.restDistance,
+        },
+        scaleSpring: {
+          stiffness: settings.scaleSpring.stiffness,
+          damping: settings.scaleSpring.damping,
+          restSpeed: settings.scaleSpring.restSpeed,
+          restDistance: settings.scaleSpring.restDistance,
+        },
+      };
+
+      settingsRef.current = nextSettings;
+      rotationSpringRef.current.setConfig(nextSettings.rotationSpring);
+      scaleSpringRef.current.setConfig(nextSettings.scaleSpring);
+    });
+
+    return () => dispose();
+  }, [store]);
 
   // Update CSS custom properties
   const updateRotation = useCallback((value: number) => {
@@ -83,6 +116,7 @@ export function useDragSwing(): UseDragSwingReturn {
 
     const rotationSpring = rotationSpringRef.current;
     const scaleSpring = scaleSpringRef.current;
+    const restScale = REST_SCALE;
 
     // Initialize springs with current state
     rotationSpring.setCurrent(currentRotationRef.current);
@@ -113,10 +147,10 @@ export function useDragSwing(): UseDragSwingReturn {
           settleFrameCountRef.current = 0;
           rotationSpring.setCurrent(0);
           rotationSpring.setTarget(0);
-          scaleSpring.setCurrent(1);
-          scaleSpring.setTarget(1);
+          scaleSpring.setCurrent(restScale);
+          scaleSpring.setTarget(restScale);
           updateRotation(0);
-          updateScale(1);
+          updateScale(restScale);
           springAnimationFrameRef.current = null;
           return;
         }
@@ -172,13 +206,13 @@ export function useDragSwing(): UseDragSwingReturn {
     settleFrameCountRef.current = 0;
 
     currentRotationRef.current = 0;
-    currentScaleRef.current = 1;
+    currentScaleRef.current = REST_SCALE;
     updateRotation(0);
-    updateScale(1);
+    updateScale(REST_SCALE);
 
     // Set scale spring target directly (setState is async, so we can't rely on state being updated)
-    // This matches swing-card.tsx handleDragStart: scaleRaw.set(1.04)
-    scaleSpringRef.current.setTarget(1.04);
+    // This matches swing-card.tsx handleDragStart: scaleRaw.set(dragScale)
+    scaleSpringRef.current.setTarget(settingsRef.current.dragScale);
 
     // Start continuous spring animation (matches swing-card.tsx useSpring behavior)
     startSpringAnimation();
@@ -245,8 +279,8 @@ export function useDragSwing(): UseDragSwingReturn {
       settleFrameCountRef.current = 0;
 
       // Set scale spring target directly (setState is async, so we can't rely on state being updated)
-      // This matches swing-card.tsx handleDragStart: scaleRaw.set(1.04)
-      scaleSpringRef.current.setTarget(1.04);
+      // This matches swing-card.tsx handleDragStart: scaleRaw.set(dragScale)
+      scaleSpringRef.current.setTarget(settingsRef.current.dragScale);
 
       // Start continuous spring animation (matches swing-card.tsx useSpring behavior)
       startSpringAnimation();
@@ -256,7 +290,7 @@ export function useDragSwing(): UseDragSwingReturn {
 
   /**
    * onDrag event handler
-   * Uses Bento-style velocity-based rotation with 100ms sliding window
+   * Uses Bento-style velocity-based rotation with a sliding velocity window
    */
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
@@ -294,7 +328,7 @@ export function useDragSwing(): UseDragSwingReturn {
         }
       }
 
-      // Track pointer position history for velocity calculation (100ms sliding window)
+      // Track pointer position history for velocity calculation (sliding window)
       let positionHistory: PointWithTimestamp[] = [
         ...positionHistoryRef.current,
         {
@@ -304,21 +338,28 @@ export function useDragSwing(): UseDragSwingReturn {
         },
       ];
 
-      // Keep only last 100ms of history
+      // Keep only the most recent velocity window of history
       positionHistory = positionHistory.filter(
-        (entry) => now - entry.timestamp < VELOCITY_WINDOW_MS,
+        (entry) => now - entry.timestamp < settingsRef.current.velocityWindowMs,
       );
 
       // Calculate velocity from history using Bento algorithm
-      const velocity = calculateVelocityFromHistory(positionHistory);
+      const velocity = calculateVelocityFromHistory(
+        positionHistory,
+        settingsRef.current.velocityWindowMs,
+      );
 
       // Convert velocity to rotation using Bento formula
       // INVERTED: drag right = tilt left (negative rotation) due to inertia
-      const targetRotation = velocityToRotation(velocity.x);
+      const targetRotation = velocityToRotation(
+        velocity.x,
+        settingsRef.current.velocityScale,
+        settingsRef.current.maxRotation,
+      );
 
       // Update spring targets - spring will smoothly animate toward targetRotation
       // This matches swing-card.tsx: rotateRaw.set(targetRotation)
-      updateSpringTargets(targetRotation, 1.04);
+      updateSpringTargets(targetRotation, settingsRef.current.dragScale);
 
       positionHistoryRef.current = positionHistory;
     },
@@ -332,7 +373,7 @@ export function useDragSwing(): UseDragSwingReturn {
 
       // Set spring targets to 0 (rotation) and 1 (scale)
       // This matches swing-card.tsx handleDragEnd: rotateRaw.set(0), scaleRaw.set(1)
-      updateSpringTargets(0, 1);
+      updateSpringTargets(0, REST_SCALE);
 
       // Keep the spring loop alive while we settle back to rest.
       isSettlingRef.current = true;
@@ -344,9 +385,9 @@ export function useDragSwing(): UseDragSwingReturn {
       ) as HTMLElement | null;
       if (cardElement) {
         const rect = cardElement.getBoundingClientRect();
-        // Compensate for scale(1.04) to get true unscaled dimensions
+        // Compensate for drag scale to get true unscaled dimensions
         // getBoundingClientRect returns scaled dimensions, so divide by scale factor
-        const scale = 1.04;
+        const scale = settingsRef.current.dragScale;
         const unscaledRect = {
           top: rect.top,
           left: rect.left,

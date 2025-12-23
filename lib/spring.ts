@@ -53,6 +53,23 @@ export type SpringConfig = {
   restDistance?: number;
 };
 
+export type RotationSpringSettings = Required<
+  Pick<SpringConfig, "stiffness" | "damping" | "mass" | "restSpeed" | "restDistance">
+>;
+
+export type ScaleSpringSettings = Required<
+  Pick<SpringConfig, "stiffness" | "damping" | "restSpeed" | "restDistance">
+>;
+
+export type DragSwingSettings = {
+  velocityWindowMs: number;
+  velocityScale: number;
+  maxRotation: number;
+  dragScale: number;
+  rotationSpring: RotationSpringSettings;
+  scaleSpring: ScaleSpringSettings;
+};
+
 export type SpringState = {
   done: boolean;
   hasReachedTarget: boolean;
@@ -65,6 +82,32 @@ export type PointWithTimestamp = {
   y: number;
   timestamp: number;
 };
+
+export const DRAG_SWING_DEFAULTS: DragSwingSettings = {
+  velocityWindowMs: VELOCITY_WINDOW_MS,
+  velocityScale: VELOCITY_SCALE,
+  maxRotation: MAX_ROTATION,
+  dragScale: 1.04,
+  rotationSpring: {
+    stiffness: SPRING_DEFAULTS.stiffness,
+    damping: SPRING_DEFAULTS.damping,
+    mass: SPRING_DEFAULTS.mass,
+    restSpeed: 2,
+    restDistance: 0.5,
+  },
+  scaleSpring: {
+    stiffness: SCALE_SPRING_CONFIG.stiffness,
+    damping: SCALE_SPRING_CONFIG.damping,
+    restSpeed: SCALE_SPRING_CONFIG.restSpeed,
+    restDistance: 0.001,
+  },
+};
+
+export const getDragSwingDefaults = (): DragSwingSettings => ({
+  ...DRAG_SWING_DEFAULTS,
+  rotationSpring: { ...DRAG_SWING_DEFAULTS.rotationSpring },
+  scaleSpring: { ...DRAG_SWING_DEFAULTS.scaleSpring },
+});
 
 // ============================================================================
 // Spring Physics
@@ -84,13 +127,13 @@ export const createLiveSpring = (
     restDistance?: number;
   } = {},
 ) => {
-  const {
-    stiffness = SPRING_DEFAULTS.stiffness,
-    damping = SPRING_DEFAULTS.damping,
-    mass = SPRING_DEFAULTS.mass,
-    restSpeed = 2,
-    restDistance = 0.5,
-  } = config;
+  const configState = {
+    stiffness: config.stiffness ?? SPRING_DEFAULTS.stiffness,
+    damping: config.damping ?? SPRING_DEFAULTS.damping,
+    mass: config.mass ?? SPRING_DEFAULTS.mass,
+    restSpeed: config.restSpeed ?? 2,
+    restDistance: config.restDistance ?? 0.5,
+  };
 
   let currentValue = 0;
   let currentVelocity = 0;
@@ -125,9 +168,10 @@ export const createLiveSpring = (
       // F = -k * x - c * v (spring force + damping force)
       // a = F / m
       const displacement = currentValue - targetValue;
-      const springForce = -stiffness * displacement;
-      const dampingForce = -damping * currentVelocity;
-      const acceleration = (springForce + dampingForce) / mass;
+      const springForce = -configState.stiffness * displacement;
+      const dampingForce = -configState.damping * currentVelocity;
+      const acceleration =
+        (springForce + dampingForce) / configState.mass;
 
       // Update velocity and position using Euler integration
       // dt is in seconds, velocity is in units/second, so position change = velocity * dt
@@ -137,8 +181,8 @@ export const createLiveSpring = (
 
       // Check if at rest
       const isAtRest =
-        Math.abs(currentVelocity) < restSpeed &&
-        Math.abs(currentValue - targetValue) < restDistance;
+        Math.abs(currentVelocity) < configState.restSpeed &&
+        Math.abs(currentValue - targetValue) < configState.restDistance;
 
       if (isAtRest) {
         currentValue = targetValue;
@@ -159,6 +203,24 @@ export const createLiveSpring = (
       lastTime = null;
     },
 
+    setConfig(nextConfig: SpringConfig) {
+      if (typeof nextConfig.stiffness === "number") {
+        configState.stiffness = nextConfig.stiffness;
+      }
+      if (typeof nextConfig.damping === "number") {
+        configState.damping = nextConfig.damping;
+      }
+      if (typeof nextConfig.mass === "number") {
+        configState.mass = nextConfig.mass;
+      }
+      if (typeof nextConfig.restSpeed === "number") {
+        configState.restSpeed = nextConfig.restSpeed;
+      }
+      if (typeof nextConfig.restDistance === "number") {
+        configState.restDistance = nextConfig.restDistance;
+      }
+    },
+
     getValue() {
       return currentValue;
     },
@@ -174,14 +236,15 @@ export const createLiveSpring = (
 // ============================================================================
 
 /**
- * Calculate velocity from position history using a 100ms sliding window
+ * Calculate velocity from position history using a sliding window
  *
  * This matches the exact algorithm from Bento/Framer Motion's PanSession class.
  * The velocity is calculated from the difference between the latest position
- * and a sample older than 100ms.
+ * and a sample older than the provided window.
  */
 export const calculateVelocityFromHistory = (
   history: PointWithTimestamp[],
+  windowMs: number = VELOCITY_WINDOW_MS,
 ): { x: number; y: number } => {
   if (history.length < 2) {
     return { x: 0, y: 0 };
@@ -194,7 +257,7 @@ export const calculateVelocityFromHistory = (
   // Find sample older than 100ms window
   while (i >= 0) {
     oldestSample = history[i];
-    if (latest.timestamp - oldestSample.timestamp > VELOCITY_WINDOW_MS) {
+    if (latest.timestamp - oldestSample.timestamp > windowMs) {
       break;
     }
     i--;
@@ -229,7 +292,11 @@ export const calculateVelocityFromHistory = (
  *
  * INVERTED: drag right = tilt left (negative rotation) due to inertia
  */
-export const velocityToRotation = (velocityX: number): number => {
-  const rawRotation = -velocityX * VELOCITY_SCALE;
-  return Math.sign(rawRotation) * Math.min(Math.abs(rawRotation), MAX_ROTATION);
+export const velocityToRotation = (
+  velocityX: number,
+  velocityScale: number = VELOCITY_SCALE,
+  maxRotation: number = MAX_ROTATION,
+): number => {
+  const rawRotation = -velocityX * velocityScale;
+  return Math.sign(rawRotation) * Math.min(Math.abs(rawRotation), maxRotation);
 };
