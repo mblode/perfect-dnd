@@ -154,7 +154,7 @@ class TrackedPointerSensor implements SensorInstance {
     this.windowListeners.add(EventName.DragStart, preventDefault);
     this.windowListeners.add(EventName.VisibilityChange, this.handleCancel);
     this.windowListeners.add(EventName.ContextMenu, preventDefault);
-    this.documentListeners.add(EventName.Keydown, this.handleKeydown);
+    this.documentListeners.add(EventName.Keydown, this.handleKeydown as EventListener);
 
     if (options.activationConstraint) {
       if (
@@ -326,7 +326,7 @@ export class TrackedMouseSensor extends TrackedPointerSensor {
 
   static activators = [
     {
-      eventName: "onMouseDown",
+      eventName: "onMouseDown" as const,
       handler: (
         { nativeEvent: event }: ReactMouseEvent,
         { onActivation }: TrackedPointerSensorOptions,
@@ -360,7 +360,7 @@ export class TrackedTouchSensor extends TrackedPointerSensor {
 
   static activators = [
     {
-      eventName: "onTouchStart",
+      eventName: "onTouchStart" as const,
       handler: (
         { nativeEvent: event }: ReactTouchEvent,
         { onActivation }: TrackedPointerSensorOptions,
