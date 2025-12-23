@@ -5,8 +5,6 @@ import { observer } from "mobx-react-lite";
 import {
   createLiveSpring,
   POSITION_SPRING_CONFIG,
-  SCALE_SPRING_CONFIG,
-  SPRING_DEFAULTS,
 } from "@/lib/spring";
 import { useStore } from "@/lib/stores/store";
 import type { BlockData } from "@/types/block";
@@ -27,6 +25,7 @@ export const SettlingOverlay = observer(
 
     const rect = store.dropAnimationRect;
     const rotation = store.dropAnimationRotation;
+    const dragSwingSettings = store.dragSwingSettings;
 
     useLayoutEffect(() => {
       if (
@@ -53,17 +52,17 @@ export const SettlingOverlay = observer(
       const xSpring = createLiveSpring(POSITION_SPRING_CONFIG);
       const ySpring = createLiveSpring(POSITION_SPRING_CONFIG);
       const rotationSpring = createLiveSpring({
-        stiffness: SPRING_DEFAULTS.stiffness,
-        damping: SPRING_DEFAULTS.damping,
-        mass: SPRING_DEFAULTS.mass,
-        restSpeed: 2,
-        restDistance: 0.5,
+        stiffness: dragSwingSettings.rotationSpring.stiffness,
+        damping: dragSwingSettings.rotationSpring.damping,
+        mass: dragSwingSettings.rotationSpring.mass,
+        restSpeed: dragSwingSettings.rotationSpring.restSpeed,
+        restDistance: dragSwingSettings.rotationSpring.restDistance,
       });
       const scaleSpring = createLiveSpring({
-        stiffness: SCALE_SPRING_CONFIG.stiffness,
-        damping: SCALE_SPRING_CONFIG.damping,
-        restSpeed: SCALE_SPRING_CONFIG.restSpeed,
-        restDistance: 0.001,
+        stiffness: dragSwingSettings.scaleSpring.stiffness,
+        damping: dragSwingSettings.scaleSpring.damping,
+        restSpeed: dragSwingSettings.scaleSpring.restSpeed,
+        restDistance: dragSwingSettings.scaleSpring.restDistance,
       });
 
       xSpring.setCurrent(rect.left);
@@ -72,7 +71,7 @@ export const SettlingOverlay = observer(
       ySpring.setTarget(targetRect.top);
       rotationSpring.setCurrent(rotation);
       rotationSpring.setTarget(0);
-      scaleSpring.setCurrent(1.04);
+      scaleSpring.setCurrent(dragSwingSettings.dragScale);
       scaleSpring.setTarget(1);
 
       // Shadow fade (linear, no spring needed)
@@ -163,7 +162,22 @@ export const SettlingOverlay = observer(
         }
         shadowAnimation.cancel();
       };
-    }, [rect, rotation, block.id, onAnimationComplete]);
+    }, [
+      rect,
+      rotation,
+      block.id,
+      onAnimationComplete,
+      dragSwingSettings.dragScale,
+      dragSwingSettings.rotationSpring.stiffness,
+      dragSwingSettings.rotationSpring.damping,
+      dragSwingSettings.rotationSpring.mass,
+      dragSwingSettings.rotationSpring.restSpeed,
+      dragSwingSettings.rotationSpring.restDistance,
+      dragSwingSettings.scaleSpring.stiffness,
+      dragSwingSettings.scaleSpring.damping,
+      dragSwingSettings.scaleSpring.restSpeed,
+      dragSwingSettings.scaleSpring.restDistance,
+    ]);
 
     if (!rect) return null;
 
@@ -186,7 +200,7 @@ export const SettlingOverlay = observer(
           style={{
             width: "100%",
             height: "100%",
-            transform: `rotate(${rotation}deg) scale(1.04)`,
+            transform: `rotate(${rotation}deg) scale(${dragSwingSettings.dragScale})`,
             transformOrigin: "center center",
           }}
         >

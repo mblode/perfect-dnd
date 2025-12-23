@@ -25,7 +25,6 @@ export const ContentCard = observer(({ block }: ContentCardProps) => {
     setNodeRef,
     transform,
     transition,
-    isDragging,
   } = useSortable({ id: block.id });
 
   const isActiveInStore = store.activeBlockId === block.id;
@@ -33,7 +32,7 @@ export const ContentCard = observer(({ block }: ContentCardProps) => {
   // isDragging from dnd-kit resets immediately, but we want to wait for animation
   const showPlaceholder = isActiveInStore || isSettling;
 
-  const shouldDisableMotion = isDragging || isSettling;
+  const shouldDisableMotion = isSettling;
   const style = {
     transform: shouldDisableMotion ? undefined : CSS.Transform.toString(transform),
     transition: shouldDisableMotion ? undefined : transition,

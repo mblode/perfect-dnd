@@ -21,6 +21,8 @@ import {
 import { observer } from "mobx-react-lite";
 import { TrackedMouseSensor, TrackedTouchSensor } from "@/lib/dnd/tracked-sensors";
 import { useStore } from "@/lib/stores/store";
+import { cn } from "@/lib/utils";
+import { DragSwingControls } from "./drag-swing-controls";
 import { DragSwingOverlay } from "./drag-swing-overlay";
 import { ContentCard } from "./content-card";
 import { SettlingOverlay } from "./settling-overlay";
@@ -32,6 +34,8 @@ export const EditorPage = observer(() => {
   const sortedBlocks = store.blocksData
     .filter((block) => block.pageId === pageId)
     .sort((a, b) => a.order - b.order);
+  const sortedIds = sortedBlocks.map((block) => block.id);
+  const blockById = new Map(sortedBlocks.map((block) => [block.id, block]));
 
   // MouseSensor + TouchSensor (not PointerSensor) per dnd-kit best practices
   const sensors = useSensors(
@@ -75,7 +79,7 @@ export const EditorPage = observer(() => {
   };
 
   const activeBlock = store.activeBlockId
-    ? sortedBlocks.find((b) => b.id === store.activeBlockId)
+    ? blockById.get(store.activeBlockId) ?? null
     : null;
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -84,11 +88,7 @@ export const EditorPage = observer(() => {
     if (over && active.id !== over.id) {
       const oldIndex = sortedBlocks.findIndex((b) => b.id === active.id);
       const newIndex = sortedBlocks.findIndex((b) => b.id === over.id);
-      const newOrder = arrayMove(
-        sortedBlocks.map((b) => b.id),
-        oldIndex,
-        newIndex,
-      );
+      const newOrder = arrayMove(sortedIds, oldIndex, newIndex);
       store.reorderBlocks(pageId, newOrder);
     }
 
@@ -107,7 +107,7 @@ export const EditorPage = observer(() => {
 
   // Get the settling block data
   const settlingBlock = store.settlingBlockId
-    ? sortedBlocks.find((b) => b.id === store.settlingBlockId)
+    ? blockById.get(store.settlingBlockId) ?? null
     : null;
 
   return (
@@ -121,12 +121,17 @@ export const EditorPage = observer(() => {
     >
       <div className="flex min-h-screen w-full flex-col">
         <main className="flex-1">
-          <div className="mx-auto">
-            <div className="flex gap-4 p-4">
+          <div className="mx-auto w-full max-w-6xl">
+            <div className="flex flex-col gap-6 p-4 lg:flex-row">
               <div className="flex-1 min-w-0 overflow-auto">
-                <div className="mx-auto max-w-lg py-2">
+                <div
+                  className={cn("mx-auto max-w-lg py-2 lg:mx-0", {
+                    "invisible pointer-events-none": !store.isHydrated,
+                  })}
+                  aria-hidden={!store.isHydrated}
+                >
                   <SortableContext
-                    items={sortedBlocks.map((b) => b.id)}
+                    items={sortedIds}
                     strategy={verticalListSortingStrategy}
                   >
                     {sortedBlocks.map((block) => (
@@ -135,6 +140,11 @@ export const EditorPage = observer(() => {
                   </SortableContext>
                 </div>
               </div>
+              <aside className="w-full shrink-0 lg:w-80">
+                <div className="lg:sticky lg:top-4">
+                  <DragSwingControls />
+                </div>
+              </aside>
             </div>
           </div>
         </main>

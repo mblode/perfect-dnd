@@ -4,6 +4,10 @@ import { createContext, useContext } from "react";
 import { makeAutoObservable } from "mobx";
 import { makePersistable, isHydrated } from "mobx-persist-store";
 import type { BlockData, DropPosition } from "@/types/block";
+import {
+  getDragSwingDefaults,
+  type DragSwingSettings,
+} from "@/lib/spring";
 
 // Mock data for demo
 const MOCK_BLOCKS: BlockData[] = [
@@ -55,6 +59,8 @@ const MOCK_BLOCKS: BlockData[] = [
 export class Store {
   blocksData: BlockData[] = MOCK_BLOCKS;
 
+  dragSwingSettings: DragSwingSettings = getDragSwingDefaults();
+
   // Drag state
   activeBlockId: string | null = null;
   settlingBlockId: string | null = null;
@@ -73,12 +79,15 @@ export class Store {
 
     makePersistable(this, {
       name: "perfect-dnd-store",
-      properties: ["blocksData"],
+      properties: ["blocksData", "dragSwingSettings"],
       storage: typeof window !== "undefined" ? window.localStorage : undefined,
     });
   }
 
   get isHydrated() {
+    if (typeof window === "undefined") {
+      return false;
+    }
     return isHydrated(this);
   }
 
@@ -95,6 +104,30 @@ export class Store {
     this.blocksData = this.blocksData.map((block) =>
       block.id === blockId ? { ...block, visible: !block.visible } : block
     );
+  }
+
+  setDragSwingSetting<K extends keyof DragSwingSettings>(
+    key: K,
+    value: DragSwingSettings[K],
+  ) {
+    this.dragSwingSettings[key] = value;
+  }
+
+  setRotationSpringSetting<
+    K extends keyof DragSwingSettings["rotationSpring"],
+  >(key: K, value: DragSwingSettings["rotationSpring"][K]) {
+    this.dragSwingSettings.rotationSpring[key] = value;
+  }
+
+  setScaleSpringSetting<K extends keyof DragSwingSettings["scaleSpring"]>(
+    key: K,
+    value: DragSwingSettings["scaleSpring"][K],
+  ) {
+    this.dragSwingSettings.scaleSpring[key] = value;
+  }
+
+  resetDragSwingSettings() {
+    this.dragSwingSettings = getDragSwingDefaults();
   }
 
   setDropTarget(overBlockId: string | null, position: DropPosition) {
