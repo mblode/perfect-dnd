@@ -25,6 +25,7 @@ export const SettlingOverlay = observer(
 
     const rect = store.dropAnimationRect;
     const rotation = store.dropAnimationRotation;
+    const scale = store.dropAnimationScale;
     const dragSwingSettings = store.dragSwingSettings;
 
     useLayoutEffect(() => {
@@ -48,6 +49,10 @@ export const SettlingOverlay = observer(
       }
 
       const targetRect = targetElement.getBoundingClientRect();
+      const targetCenterX = targetRect.left + targetRect.width / 2;
+      const targetCenterY = targetRect.top + targetRect.height / 2;
+      const targetLeft = targetCenterX - rect.width / 2;
+      const targetTop = targetCenterY - rect.height / 2;
 
       const xSpring = createLiveSpring(POSITION_SPRING_CONFIG);
       const ySpring = createLiveSpring(POSITION_SPRING_CONFIG);
@@ -66,12 +71,12 @@ export const SettlingOverlay = observer(
       });
 
       xSpring.setCurrent(rect.left);
-      xSpring.setTarget(targetRect.left);
+      xSpring.setTarget(targetLeft);
       ySpring.setCurrent(rect.top);
-      ySpring.setTarget(targetRect.top);
+      ySpring.setTarget(targetTop);
       rotationSpring.setCurrent(rotation);
       rotationSpring.setTarget(0);
-      scaleSpring.setCurrent(dragSwingSettings.dragScale);
+      scaleSpring.setCurrent(scale);
       scaleSpring.setTarget(1);
 
       // Shadow fade (linear, no spring needed)
@@ -103,10 +108,10 @@ export const SettlingOverlay = observer(
 
       const setFinalStyles = () => {
         if (containerRef.current) {
-          containerRef.current.style.transform = `translate(${targetRect.left}px, ${targetRect.top}px)`;
+          containerRef.current.style.transform = `translate(${targetLeft}px, ${targetTop}px)`;
         }
         if (wrapperRef.current) {
-          wrapperRef.current.style.transform = "rotate(0deg) scale(1)";
+          wrapperRef.current.style.transform = "scale(1) rotate(0deg)";
         }
       };
 
@@ -136,7 +141,7 @@ export const SettlingOverlay = observer(
           containerRef.current.style.transform = `translate(${xState.value}px, ${yState.value}px)`;
         }
         if (wrapperRef.current) {
-          wrapperRef.current.style.transform = `rotate(${rotationState.value}deg) scale(${scaleState.value})`;
+          wrapperRef.current.style.transform = `scale(${scaleState.value}) rotate(${rotationState.value}deg)`;
         }
 
         const allDone =
@@ -165,9 +170,9 @@ export const SettlingOverlay = observer(
     }, [
       rect,
       rotation,
+      scale,
       block.id,
       onAnimationComplete,
-      dragSwingSettings.dragScale,
       dragSwingSettings.rotationSpring.stiffness,
       dragSwingSettings.rotationSpring.damping,
       dragSwingSettings.rotationSpring.mass,
@@ -200,7 +205,7 @@ export const SettlingOverlay = observer(
           style={{
             width: "100%",
             height: "100%",
-            transform: `rotate(${rotation}deg) scale(${dragSwingSettings.dragScale})`,
+            transform: `scale(${scale}) rotate(${rotation}deg)`,
             transformOrigin: "center center",
           }}
         >

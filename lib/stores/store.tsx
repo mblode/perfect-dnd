@@ -70,6 +70,7 @@ export class Store {
   // Drop animation state - position captured when drag ends
   dropAnimationRect: { top: number; left: number; width: number; height: number } | null = null;
   dropAnimationRotation: number = 0;
+  dropAnimationScale: number = 1;
 
   // Editor state
   pageId: string = "page-1";
@@ -143,16 +144,20 @@ export class Store {
   startDrag(blockId: string) {
     this.activeBlockId = blockId;
     this.dropAnimationRect = null;
+    this.dropAnimationRotation = 0;
+    this.dropAnimationScale = 1;
   }
 
   // Called when drag ends - start the settling phase
   startSettling(
     rect: { top: number; left: number; width: number; height: number },
-    rotation: number
+    rotation: number,
+    scale: number,
   ) {
     this.settlingBlockId = this.activeBlockId;
     this.dropAnimationRect = rect;
     this.dropAnimationRotation = rotation;
+    this.dropAnimationScale = scale;
     this.activeBlockId = null;
     this.clearDropTarget();
   }
@@ -163,6 +168,7 @@ export class Store {
     this.settlingBlockId = null;
     this.dropAnimationRect = null;
     this.dropAnimationRotation = 0;
+    this.dropAnimationScale = 1;
   }
 }
 

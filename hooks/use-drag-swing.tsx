@@ -385,16 +385,23 @@ export function useDragSwing(): UseDragSwingReturn {
       ) as HTMLElement | null;
       if (cardElement) {
         const rect = cardElement.getBoundingClientRect();
-        // Compensate for drag scale to get true unscaled dimensions
-        // getBoundingClientRect returns scaled dimensions, so divide by scale factor
-        const scale = settingsRef.current.dragScale;
-        const unscaledRect = {
-          top: rect.top,
-          left: rect.left,
-          width: rect.width / scale,
-          height: rect.height / scale,
+        const baseWidth = cardElement.offsetWidth || rect.width;
+        const baseHeight = cardElement.offsetHeight || rect.height;
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const startRect = {
+          left: centerX - baseWidth / 2,
+          top: centerY - baseHeight / 2,
+          width: baseWidth,
+          height: baseHeight,
         };
-        store.startSettling(unscaledRect, currentRotationRef.current);
+
+        store.startSettling(
+          startRect,
+          currentRotationRef.current,
+          currentScaleRef.current || REST_SCALE,
+        );
       }
 
       positionHistoryRef.current = [];
