@@ -254,7 +254,7 @@ export const calculateVelocityFromHistory = (
 
   let i = history.length - 1;
   let oldestSample: PointWithTimestamp | null = null;
-  const latest = history.at(-1);
+  const latest = history[history.length - 1];
 
   // Find sample older than 100ms window
   while (i >= 0) {
