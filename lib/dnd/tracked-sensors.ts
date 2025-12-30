@@ -115,6 +115,7 @@ const stopPropagation = (event: Event) => {
 class TrackedPointerSensor implements SensorInstance {
   autoScrollEnabled = true;
   private readonly props: TrackedPointerSensorProps;
+  private readonly events: PointerEventHandlers;
   private readonly document: Document;
   private activated = false;
   private readonly initialCoordinates: { x: number; y: number } | null = null;
