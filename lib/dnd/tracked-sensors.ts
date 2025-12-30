@@ -145,14 +145,15 @@ class TrackedPointerSensor implements SensorInstance {
 
   private attach() {
     const {
-      events,
       props: { options },
     } = this;
 
-    this.listeners.add(events.move.name, this.handleMove, { passive: false });
-    this.listeners.add(events.end.name, this.handleEnd);
-    if (events.cancel) {
-      this.listeners.add(events.cancel.name, this.handleCancel);
+    this.listeners.add(this.events.move.name, this.handleMove, {
+      passive: false,
+    });
+    this.listeners.add(this.events.end.name, this.handleEnd);
+    if (this.events.cancel) {
+      this.listeners.add(this.events.cancel.name, this.handleCancel);
     }
 
     this.windowListeners.add(EventName.Resize, this.handleCancel);
