@@ -14,7 +14,7 @@ export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
 
   const measureRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(
-    null,
+    null
   );
 
   useLayoutEffect(() => {
@@ -51,7 +51,7 @@ export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
             transformOrigin: "center center",
           }}
         >
-          <DragOverlayCard ref={measureRef} block={block} />
+          <DragOverlayCard block={block} ref={measureRef} />
         </div>
       </div>
     </div>

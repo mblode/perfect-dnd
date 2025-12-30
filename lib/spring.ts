@@ -42,7 +42,7 @@ export const POSITION_SPRING_CONFIG = {
 // Types
 // ============================================================================
 
-export type SpringConfig = {
+export interface SpringConfig {
   stiffness?: number;
   damping?: number;
   mass?: number;
@@ -51,37 +51,40 @@ export type SpringConfig = {
   velocity?: number;
   restSpeed?: number;
   restDistance?: number;
-};
+}
 
 export type RotationSpringSettings = Required<
-  Pick<SpringConfig, "stiffness" | "damping" | "mass" | "restSpeed" | "restDistance">
+  Pick<
+    SpringConfig,
+    "stiffness" | "damping" | "mass" | "restSpeed" | "restDistance"
+  >
 >;
 
 export type ScaleSpringSettings = Required<
   Pick<SpringConfig, "stiffness" | "damping" | "restSpeed" | "restDistance">
 >;
 
-export type DragSwingSettings = {
+export interface DragSwingSettings {
   velocityWindowMs: number;
   velocityScale: number;
   maxRotation: number;
   dragScale: number;
   rotationSpring: RotationSpringSettings;
   scaleSpring: ScaleSpringSettings;
-};
+}
 
-export type SpringState = {
+export interface SpringState {
   done: boolean;
   hasReachedTarget: boolean;
   current: number;
   target: number;
-};
+}
 
-export type PointWithTimestamp = {
+export interface PointWithTimestamp {
   x: number;
   y: number;
   timestamp: number;
-};
+}
 
 export const DRAG_SWING_DEFAULTS: DragSwingSettings = {
   velocityWindowMs: VELOCITY_WINDOW_MS,
@@ -125,7 +128,7 @@ export const createLiveSpring = (
     mass?: number;
     restSpeed?: number;
     restDistance?: number;
-  } = {},
+  } = {}
 ) => {
   const configState = {
     stiffness: config.stiffness ?? SPRING_DEFAULTS.stiffness,
@@ -170,8 +173,7 @@ export const createLiveSpring = (
       const displacement = currentValue - targetValue;
       const springForce = -configState.stiffness * displacement;
       const dampingForce = -configState.damping * currentVelocity;
-      const acceleration =
-        (springForce + dampingForce) / configState.mass;
+      const acceleration = (springForce + dampingForce) / configState.mass;
 
       // Update velocity and position using Euler integration
       // dt is in seconds, velocity is in units/second, so position change = velocity * dt
@@ -244,7 +246,7 @@ export const createLiveSpring = (
  */
 export const calculateVelocityFromHistory = (
   history: PointWithTimestamp[],
-  windowMs: number = VELOCITY_WINDOW_MS,
+  windowMs: number = VELOCITY_WINDOW_MS
 ): { x: number; y: number } => {
   if (history.length < 2) {
     return { x: 0, y: 0 };
@@ -252,7 +254,7 @@ export const calculateVelocityFromHistory = (
 
   let i = history.length - 1;
   let oldestSample: PointWithTimestamp | null = null;
-  const latest = history[history.length - 1];
+  const latest = history.at(-1);
 
   // Find sample older than 100ms window
   while (i >= 0) {
@@ -281,8 +283,12 @@ export const calculateVelocityFromHistory = (
   };
 
   // Prevent infinity values
-  if (velocity.x === Infinity) velocity.x = 0;
-  if (velocity.y === Infinity) velocity.y = 0;
+  if (velocity.x === Number.POSITIVE_INFINITY) {
+    velocity.x = 0;
+  }
+  if (velocity.y === Number.POSITIVE_INFINITY) {
+    velocity.y = 0;
+  }
 
   return velocity;
 };
@@ -295,7 +301,7 @@ export const calculateVelocityFromHistory = (
 export const velocityToRotation = (
   velocityX: number,
   velocityScale: number = VELOCITY_SCALE,
-  maxRotation: number = MAX_ROTATION,
+  maxRotation: number = MAX_ROTATION
 ): number => {
   const rawRotation = -velocityX * velocityScale;
   return Math.sign(rawRotation) * Math.min(Math.abs(rawRotation), maxRotation);

@@ -2,13 +2,13 @@
 
 import {
   closestCenter,
-  defaultDropAnimationSideEffects,
   DndContext,
   type DragEndEvent,
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
   type DropAnimation,
+  defaultDropAnimationSideEffects,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -19,12 +19,14 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { observer } from "mobx-react-lite";
-import { TrackedMouseSensor, TrackedTouchSensor } from "@/lib/dnd/tracked-sensors";
+import {
+  TrackedMouseSensor,
+  TrackedTouchSensor,
+} from "@/lib/dnd/tracked-sensors";
 import { useStore } from "@/lib/stores/store";
 import { cn } from "@/lib/utils";
-import { DragSwingControls } from "./drag-swing-controls";
-import { DragSwingOverlay } from "./drag-swing-overlay";
 import { ContentCard } from "./content-card";
+import { DragSwingOverlay } from "./drag-swing-overlay";
 import { SettlingOverlay } from "./settling-overlay";
 
 export const EditorPage = observer(() => {
@@ -48,10 +50,10 @@ export const EditorPage = observer(() => {
         tolerance: 5,
       },
     }),
-    useSensor(KeyboardSensor),
+    useSensor(KeyboardSensor)
   );
 
-  const dropAnimation: DropAnimation = {
+  const _dropAnimation: DropAnimation = {
     duration: 350,
     easing: "cubic-bezier(0.22, 1.5, 0.36, 1)",
     sideEffects: defaultDropAnimationSideEffects({
@@ -79,7 +81,7 @@ export const EditorPage = observer(() => {
   };
 
   const activeBlock = store.activeBlockId
-    ? blockById.get(store.activeBlockId) ?? null
+    ? (blockById.get(store.activeBlockId) ?? null)
     : null;
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -107,28 +109,28 @@ export const EditorPage = observer(() => {
 
   // Get the settling block data
   const settlingBlock = store.settlingBlockId
-    ? blockById.get(store.settlingBlockId) ?? null
+    ? (blockById.get(store.settlingBlockId) ?? null)
     : null;
 
   return (
     <DndContext
-      sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragStart={handleDragStart}
+      sensors={sensors}
     >
       <div className="flex min-h-screen w-full flex-col">
         <main className="flex-1">
           <div className="mx-auto w-full max-w-6xl">
-            <div className="flex flex-col gap-6 p-4 lg:flex-row">
-              <div className="flex-1 min-w-0 overflow-auto">
+            <div className="flex flex-col gap-6 p-4">
+              <div className="min-w-0 flex-1 overflow-auto">
                 <div
-                  className={cn("mx-auto max-w-lg py-2 lg:mx-0", {
-                    "invisible pointer-events-none": !store.isHydrated,
-                  })}
                   aria-hidden={!store.isHydrated}
+                  className={cn("mx-auto max-w-lg py-2", {
+                    "pointer-events-none invisible": !store.isHydrated,
+                  })}
                 >
                   <SortableContext
                     items={sortedIds}
@@ -140,11 +142,6 @@ export const EditorPage = observer(() => {
                   </SortableContext>
                 </div>
               </div>
-              <aside className="w-full shrink-0 lg:w-80">
-                <div className="lg:sticky lg:top-4">
-                  <DragSwingControls />
-                </div>
-              </aside>
             </div>
           </div>
         </main>

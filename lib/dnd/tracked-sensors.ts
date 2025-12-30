@@ -6,17 +6,17 @@ import type {
   SensorOptions,
   SensorProps,
 } from "@dnd-kit/core";
-import { KeyboardCode, defaultCoordinates } from "@dnd-kit/core";
-import type {
-  MouseEvent as ReactMouseEvent,
-  TouchEvent as ReactTouchEvent,
-} from "react";
+import { defaultCoordinates, KeyboardCode } from "@dnd-kit/core";
 import {
   getEventCoordinates,
   getOwnerDocument,
   getWindow,
   subtract,
 } from "@dnd-kit/utilities";
+import type {
+  MouseEvent as ReactMouseEvent,
+  TouchEvent as ReactTouchEvent,
+} from "react";
 import {
   clearPointerPosition,
   setPointerPosition,
@@ -26,16 +26,21 @@ import {
 export interface TrackedPointerSensorOptions extends SensorOptions {
   activationConstraint?: PointerActivationConstraint;
   bypassActivationConstraint?(
-    props: Pick<TrackedPointerSensorProps, "activeNode" | "event" | "options">,
+    props: Pick<TrackedPointerSensorProps, "activeNode" | "event" | "options">
   ): boolean;
   onActivation?({ event }: { event: Event }): void;
 }
 
-export type TrackedPointerSensorProps = SensorProps<TrackedPointerSensorOptions>;
+export type TrackedPointerSensorProps =
+  SensorProps<TrackedPointerSensorOptions>;
 
 class Listeners {
-  private target: EventTarget | null;
-  private listeners: [string, EventListener, AddEventListenerOptions?][];
+  private readonly target: EventTarget | null;
+  private readonly listeners: [
+    string,
+    EventListener,
+    AddEventListenerOptions?,
+  ][];
 
   constructor(target: EventTarget | null) {
     this.target = target;
@@ -45,16 +50,16 @@ class Listeners {
   add(
     eventName: string,
     handler: EventListener,
-    options?: AddEventListenerOptions,
+    options?: AddEventListenerOptions
   ) {
     this.target?.addEventListener(eventName, handler, options);
     this.listeners.push([eventName, handler, options]);
   }
 
   removeAll = () => {
-    this.listeners.forEach((listener) => {
+    for (const listener of this.listeners) {
       this.target?.removeEventListener(...listener);
-    });
+    }
   };
 }
 
@@ -65,7 +70,7 @@ const getEventListenerTarget = (target: Event["target"]): EventTarget => {
 
 const hasExceededDistance = (
   delta: { x: number; y: number },
-  measurement: DistanceMeasurement,
+  measurement: DistanceMeasurement
 ) => {
   const dx = Math.abs(delta.x);
   const dy = Math.abs(delta.y);
@@ -89,15 +94,15 @@ const hasExceededDistance = (
   return false;
 };
 
-enum EventName {
-  Click = "click",
-  DragStart = "dragstart",
-  Keydown = "keydown",
-  ContextMenu = "contextmenu",
-  Resize = "resize",
-  SelectionChange = "selectionchange",
-  VisibilityChange = "visibilitychange",
-}
+const EventName = {
+  Click: "click",
+  DragStart: "dragstart",
+  Keydown: "keydown",
+  ContextMenu: "contextmenu",
+  Resize: "resize",
+  SelectionChange: "selectionchange",
+  VisibilityChange: "visibilitychange",
+} as const;
 
 const preventDefault = (event: Event) => {
   event.preventDefault();
@@ -109,22 +114,21 @@ const stopPropagation = (event: Event) => {
 
 class TrackedPointerSensor implements SensorInstance {
   autoScrollEnabled = true;
-  private props: TrackedPointerSensorProps;
-  private events: PointerEventHandlers;
-  private document: Document;
+  private readonly props: TrackedPointerSensorProps;
+  private readonly document: Document;
   private activated = false;
-  private initialCoordinates: { x: number; y: number } | null = null;
+  private readonly initialCoordinates: { x: number; y: number } | null = null;
   private timeoutId: ReturnType<typeof setTimeout> | null = null;
-  private listeners: Listeners;
-  private documentListeners: Listeners;
-  private windowListeners: Listeners;
+  private readonly listeners: Listeners;
+  private readonly documentListeners: Listeners;
+  private readonly windowListeners: Listeners;
 
   constructor(
     props: TrackedPointerSensorProps,
     events: PointerEventHandlers,
     listenerTarget: Document | EventTarget = getEventListenerTarget(
-      props.event.target,
-    ),
+      props.event.target
+    )
   ) {
     this.props = props;
     this.events = events;
@@ -154,7 +158,10 @@ class TrackedPointerSensor implements SensorInstance {
     this.windowListeners.add(EventName.DragStart, preventDefault);
     this.windowListeners.add(EventName.VisibilityChange, this.handleCancel);
     this.windowListeners.add(EventName.ContextMenu, preventDefault);
-    this.documentListeners.add(EventName.Keydown, this.handleKeydown as EventListener);
+    this.documentListeners.add(
+      EventName.Keydown,
+      this.handleKeydown as EventListener
+    );
 
     if (options.activationConstraint) {
       if (
@@ -170,7 +177,7 @@ class TrackedPointerSensor implements SensorInstance {
       if ("delay" in options.activationConstraint) {
         this.timeoutId = setTimeout(
           this.handleStart,
-          options.activationConstraint.delay,
+          options.activationConstraint.delay
         );
         this.handlePending(options.activationConstraint);
         return;
@@ -197,18 +204,18 @@ class TrackedPointerSensor implements SensorInstance {
 
   private handlePending(
     constraint: PointerActivationConstraint,
-    offset?: { x: number; y: number },
+    offset?: { x: number; y: number }
   ) {
     const { active, onPending } = this.props;
     onPending(
       active,
       constraint,
       this.initialCoordinates ?? defaultCoordinates,
-      offset,
+      offset
     );
   }
 
-  private handleStart = () => {
+  private readonly handleStart = () => {
     const { onStart } = this.props;
     if (this.initialCoordinates) {
       this.activated = true;
@@ -218,14 +225,15 @@ class TrackedPointerSensor implements SensorInstance {
       this.removeTextSelection();
       this.documentListeners.add(
         EventName.SelectionChange,
-        this.removeTextSelection,
+        this.removeTextSelection
       );
       setPointerPositionFromEvent(this.props.event);
       onStart(this.initialCoordinates);
     }
   };
 
-  private handleMove = (event: Event) => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex pointer event handling with activation constraints requires multiple conditional branches
+  private readonly handleMove = (event: Event) => {
     const { activated, initialCoordinates } = this;
     const {
       onMove,
@@ -256,10 +264,11 @@ class TrackedPointerSensor implements SensorInstance {
         }
       }
 
-      if ("delay" in activationConstraint) {
-        if (hasExceededDistance(delta, activationConstraint.tolerance)) {
-          return this.handleCancel();
-        }
+      if (
+        "delay" in activationConstraint &&
+        hasExceededDistance(delta, activationConstraint.tolerance)
+      ) {
+        return this.handleCancel();
       }
 
       this.handlePending(activationConstraint, delta);
@@ -273,7 +282,7 @@ class TrackedPointerSensor implements SensorInstance {
     onMove(resolvedCoordinates);
   };
 
-  private handleEnd = () => {
+  private readonly handleEnd = () => {
     const { onAbort, onEnd } = this.props;
     this.detach();
 
@@ -285,7 +294,7 @@ class TrackedPointerSensor implements SensorInstance {
     onEnd();
   };
 
-  private handleCancel = () => {
+  private readonly handleCancel = () => {
     const { onAbort, onCancel } = this.props;
     this.detach();
 
@@ -297,13 +306,13 @@ class TrackedPointerSensor implements SensorInstance {
     onCancel();
   };
 
-  private handleKeydown = (event: KeyboardEvent) => {
+  private readonly handleKeydown = (event: KeyboardEvent) => {
     if (event.code === KeyboardCode.Esc) {
       this.handleCancel();
     }
   };
 
-  private removeTextSelection = () => {
+  private readonly removeTextSelection = () => {
     this.document.getSelection()?.removeAllRanges();
   };
 }
@@ -329,7 +338,7 @@ export class TrackedMouseSensor extends TrackedPointerSensor {
       eventName: "onMouseDown" as const,
       handler: (
         { nativeEvent: event }: ReactMouseEvent,
-        { onActivation }: TrackedPointerSensorOptions,
+        { onActivation }: TrackedPointerSensorOptions
       ) => {
         if (event.button === 2) {
           return false;
@@ -355,7 +364,9 @@ export class TrackedTouchSensor extends TrackedPointerSensor {
       window.removeEventListener(touchEvents.move.name, noop);
     };
 
-    function noop() {}
+    function noop() {
+      // Intentionally empty - used as a passive event listener
+    }
   }
 
   static activators = [
@@ -363,7 +374,7 @@ export class TrackedTouchSensor extends TrackedPointerSensor {
       eventName: "onTouchStart" as const,
       handler: (
         { nativeEvent: event }: ReactTouchEvent,
-        { onActivation }: TrackedPointerSensorOptions,
+        { onActivation }: TrackedPointerSensorOptions
       ) => {
         const { touches } = event;
         if (touches.length > 1) {
