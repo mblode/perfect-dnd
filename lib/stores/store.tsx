@@ -1,13 +1,10 @@
 "use client";
 
-import { createContext, useContext } from "react";
 import { makeAutoObservable } from "mobx";
-import { makePersistable, isHydrated } from "mobx-persist-store";
+import { isHydrated, makePersistable } from "mobx-persist-store";
+import { createContext, useContext } from "react";
+import { type DragSwingSettings, getDragSwingDefaults } from "@/lib/spring";
 import type { BlockData, DropPosition } from "@/types/block";
-import {
-  getDragSwingDefaults,
-  type DragSwingSettings,
-} from "@/lib/spring";
 
 // Mock data for demo
 const MOCK_BLOCKS: BlockData[] = [
@@ -68,12 +65,17 @@ export class Store {
   dropPosition: DropPosition = null;
 
   // Drop animation state - position captured when drag ends
-  dropAnimationRect: { top: number; left: number; width: number; height: number } | null = null;
-  dropAnimationRotation: number = 0;
-  dropAnimationScale: number = 1;
+  dropAnimationRect: {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null = null;
+  dropAnimationRotation = 0;
+  dropAnimationScale = 1;
 
   // Editor state
-  pageId: string = "page-1";
+  pageId = "page-1";
 
   constructor() {
     makeAutoObservable(this, undefined, { autoBind: true });
@@ -94,9 +96,13 @@ export class Store {
 
   reorderBlocks(pageId: string, newOrder: string[]) {
     this.blocksData = this.blocksData.map((block) => {
-      if (block.pageId !== pageId) return block;
+      if (block.pageId !== pageId) {
+        return block;
+      }
       const newIndex = newOrder.indexOf(block.id);
-      if (newIndex === -1) return block;
+      if (newIndex === -1) {
+        return block;
+      }
       return { ...block, order: newIndex };
     });
   }
@@ -109,20 +115,21 @@ export class Store {
 
   setDragSwingSetting<K extends keyof DragSwingSettings>(
     key: K,
-    value: DragSwingSettings[K],
+    value: DragSwingSettings[K]
   ) {
     this.dragSwingSettings[key] = value;
   }
 
-  setRotationSpringSetting<
-    K extends keyof DragSwingSettings["rotationSpring"],
-  >(key: K, value: DragSwingSettings["rotationSpring"][K]) {
+  setRotationSpringSetting<K extends keyof DragSwingSettings["rotationSpring"]>(
+    key: K,
+    value: DragSwingSettings["rotationSpring"][K]
+  ) {
     this.dragSwingSettings.rotationSpring[key] = value;
   }
 
   setScaleSpringSetting<K extends keyof DragSwingSettings["scaleSpring"]>(
     key: K,
-    value: DragSwingSettings["scaleSpring"][K],
+    value: DragSwingSettings["scaleSpring"][K]
   ) {
     this.dragSwingSettings.scaleSpring[key] = value;
   }
@@ -152,7 +159,7 @@ export class Store {
   startSettling(
     rect: { top: number; left: number; width: number; height: number },
     rotation: number,
-    scale: number,
+    scale: number
   ) {
     this.settlingBlockId = this.activeBlockId;
     this.dropAnimationRect = rect;
