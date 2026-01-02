@@ -112,7 +112,6 @@ export const SettlingOverlay = observer(
         }
       };
 
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex animation logic requires multiple conditional branches
       const animate = () => {
         const now = performance.now();
         if (settleStartTime === null) {
