@@ -234,7 +234,6 @@ class TrackedPointerSensor implements SensorInstance {
     }
   };
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex pointer event handling with activation constraints requires multiple conditional branches
   private readonly handleMove = (event: Event) => {
     const { activated, initialCoordinates } = this;
     const {
