@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { CraftedBy } from "@/components/crafted-by";
 import { StoreProvider } from "@/lib/stores/store";
 
 const inter = Inter({
@@ -31,6 +32,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} antialiased`}>
         <StoreProvider>{children}</StoreProvider>
+        <footer className="flex justify-center py-6">
+          <CraftedBy />
+        </footer>
       </body>
       <GoogleAnalytics gaId="G-6LQHMQ7E0H" />
     </html>
