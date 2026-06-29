@@ -42,3 +42,7 @@ npm exec -- ultracite fix    # Auto-fix formatting and lint issues
 - [MobX](https://mobx.js.org/) — reactive state management
 - [Tailwind CSS v4](https://tailwindcss.com/) — utility-first styling
 - [Biome](https://biomejs.dev/) + [Ultracite](https://github.com/haydenbleasel/ultracite) — linting and formatting
+
+---
+
+Crafted by [<img src="https://matthewblode.com/avatar-sm.png" width="20" align="top" />](https://matthewblode.com) [Matthew Blode](https://matthewblode.com)
