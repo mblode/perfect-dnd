@@ -1,7 +1,9 @@
-import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import type { Metadata, Viewport } from "next";
+
+import "./globals.css";
+import { Inter } from "next/font/google";
+
 import { CraftedBy } from "@/components/crafted-by";
 import { StoreProvider } from "@/lib/stores/store";
 
