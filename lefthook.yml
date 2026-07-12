@@ -3,5 +3,4 @@ pre-commit:
   jobs:
     - name: ultracite
       glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
-      run: npx ultracite fix {staged_files}
-      stage_fixed: true
+      run: npx ultracite check
