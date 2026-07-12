@@ -2,6 +2,7 @@
 
 import { GripVertical } from "lucide-react";
 import type { ReactNode } from "react";
+
 import type { BlockData } from "@/types/block";
 
 interface CardInnerProps {

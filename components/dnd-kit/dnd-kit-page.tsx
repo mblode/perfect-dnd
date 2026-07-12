@@ -19,12 +19,14 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { observer } from "mobx-react-lite";
+
 import {
   TrackedMouseSensor,
   TrackedTouchSensor,
 } from "@/lib/dnd/tracked-sensors";
 import { useStore } from "@/lib/stores/store";
 import { cn } from "@/lib/utils";
+
 import { ContentCard } from "./content-card";
 import { DragSwingOverlay } from "./drag-swing-overlay";
 import { SettlingOverlay } from "./settling-overlay";

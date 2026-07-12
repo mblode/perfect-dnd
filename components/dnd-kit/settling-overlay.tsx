@@ -2,9 +2,11 @@
 
 import { observer } from "mobx-react-lite";
 import { useLayoutEffect, useRef } from "react";
+
 import { createLiveSpring, POSITION_SPRING_CONFIG } from "@/lib/spring";
 import { useStore } from "@/lib/stores/store";
 import type { BlockData } from "@/types/block";
+
 import { CardInner } from "./card-inner";
 
 interface SettlingOverlayProps {

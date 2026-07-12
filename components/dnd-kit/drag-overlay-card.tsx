@@ -1,7 +1,9 @@
 "use client";
 
 import { forwardRef } from "react";
+
 import type { BlockData } from "@/types/block";
+
 import { CardInner } from "./card-inner";
 
 interface DragOverlayCardProps {

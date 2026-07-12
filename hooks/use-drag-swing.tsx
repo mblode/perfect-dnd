@@ -8,6 +8,7 @@ import type {
 import { useDndMonitor } from "@dnd-kit/core";
 import { autorun } from "mobx";
 import { useCallback, useEffect, useRef } from "react";
+
 import { getPointerPosition } from "@/lib/dnd/pointer-tracker";
 import {
   calculateVelocityFromHistory,

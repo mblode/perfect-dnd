@@ -3,9 +3,11 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { observer } from "mobx-react-lite";
+
 import { useStore } from "@/lib/stores/store";
 import { cn } from "@/lib/utils";
 import type { BlockData } from "@/types/block";
+
 import { CardInner } from "./card-inner";
 
 interface ContentCardProps {
