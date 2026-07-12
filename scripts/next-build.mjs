@@ -1,0 +1,27 @@
+import { spawnSync } from "node:child_process";
+import { cpSync, existsSync, renameSync, rmSync } from "node:fs";
+
+const typescript = "node_modules/typescript";
+const typescript7 = "node_modules/.typescript-7-build";
+const typescript5 = "node_modules/typescript-next-build";
+
+if (!existsSync(typescript5)) {
+  throw new Error("Missing TypeScript 5 compatibility package for Next build");
+}
+
+renameSync(typescript, typescript7);
+cpSync(typescript5, typescript, { recursive: true });
+
+try {
+  const result = spawnSync(
+    "node",
+    ["node_modules/next/dist/bin/next", "build"],
+    {
+      stdio: "inherit",
+    }
+  );
+  process.exitCode = result.status ?? 1;
+} finally {
+  rmSync(typescript, { force: true, recursive: true });
+  renameSync(typescript7, typescript);
+}
