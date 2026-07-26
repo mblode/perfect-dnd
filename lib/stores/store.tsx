@@ -1,8 +1,7 @@
 "use client";
 
-import { makeAutoObservable } from "mobx";
-import { isHydrated, makePersistable } from "mobx-persist-store";
-import { createContext, useContext } from "react";
+import { autorun, makeAutoObservable, runInAction, toJS } from "mobx";
+import { createContext, useContext, useEffect, useLayoutEffect } from "react";
 
 import { type DragSwingSettings, getDragSwingDefaults } from "@/lib/spring";
 import type { BlockData, DropPosition } from "@/types/block";
@@ -54,6 +53,116 @@ const MOCK_BLOCKS: BlockData[] = [
   },
 ];
 
+const STORAGE_KEY = "perfect-dnd-store";
+
+/** Debounced so dragging a settings slider doesn't write on every frame. */
+const PERSIST_DEBOUNCE_MS = 200;
+
+type PersistedState = {
+  blocksData: BlockData[];
+  dragSwingSettings: DragSwingSettings;
+};
+
+const BLOCK_TYPES = new Set<BlockData["type"]>(["link", "header", "text"]);
+
+const isBlockData = (value: unknown): value is BlockData => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const block = value as Record<string, unknown>;
+  return (
+    typeof block.id === "string" &&
+    typeof block.title === "string" &&
+    typeof block.pageId === "string" &&
+    typeof block.order === "number" &&
+    typeof block.visible === "boolean" &&
+    BLOCK_TYPES.has(block.type as BlockData["type"])
+  );
+};
+
+/** Copies only finite numbers off the persisted payload, so a hand-edited or
+ * stale entry can't feed NaN into the spring simulation. */
+const mergeNumbers = <T extends Record<string, number>>(
+  base: T,
+  override: unknown
+): T => {
+  if (typeof override !== "object" || override === null) {
+    return base;
+  }
+  const source = override as Record<string, unknown>;
+  const merged = { ...base };
+  for (const key of Object.keys(base)) {
+    const next = source[key];
+    if (typeof next === "number" && Number.isFinite(next)) {
+      merged[key as keyof T] = next as T[keyof T];
+    }
+  }
+  return merged;
+};
+
+const mergeDragSwingSettings = (value: unknown): DragSwingSettings => {
+  const { rotationSpring, scaleSpring, ...scalars } = getDragSwingDefaults();
+  const source = (value ?? {}) as Record<string, unknown>;
+
+  return {
+    ...mergeNumbers(scalars, source),
+    rotationSpring: mergeNumbers(rotationSpring, source.rotationSpring),
+    scaleSpring: mergeNumbers(scaleSpring, source.scaleSpring),
+  };
+};
+
+/**
+ * localStorage is synchronous, so reading it needs no async plumbing. Anything
+ * blocked, corrupt, or malformed resolves to defaults instead of leaving the
+ * app without usable state.
+ */
+const readPersistedState = (): Partial<PersistedState> => {
+  let raw: string | null = null;
+
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return {}; // Storage disabled (private mode, blocked cookies).
+  }
+
+  if (!raw) {
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {}; // Corrupt payload.
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return {};
+  }
+
+  const { blocksData, dragSwingSettings } = parsed as Record<string, unknown>;
+
+  return {
+    blocksData:
+      Array.isArray(blocksData) && blocksData.every(isBlockData)
+        ? blocksData
+        : undefined,
+    dragSwingSettings:
+      dragSwingSettings === undefined
+        ? undefined
+        : mergeDragSwingSettings(dragSwingSettings),
+  };
+};
+
+const writePersistedState = (state: PersistedState) => {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Quota exceeded or storage blocked. Persistence is best-effort and must
+    // never take the app down with it.
+  }
+};
+
 export class Store {
   blocksData: BlockData[] = MOCK_BLOCKS;
 
@@ -80,19 +189,36 @@ export class Store {
 
   constructor() {
     makeAutoObservable(this, undefined, { autoBind: true });
-
-    makePersistable(this, {
-      name: "perfect-dnd-store",
-      properties: ["blocksData", "dragSwingSettings"],
-      storage: typeof window !== "undefined" ? window.localStorage : undefined,
-    });
   }
 
-  get isHydrated() {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    return isHydrated(this);
+  /**
+   * Applies persisted state, then keeps writing changes back. Client-only, and
+   * called after mount so the first client render still matches the server
+   * HTML. Returns a disposer.
+   */
+  startPersisting() {
+    const persisted = readPersistedState();
+
+    runInAction(() => {
+      if (persisted.blocksData) {
+        this.blocksData = persisted.blocksData;
+      }
+      if (persisted.dragSwingSettings) {
+        this.dragSwingSettings = persisted.dragSwingSettings;
+      }
+    });
+
+    // toJS reads every nested value, so the autorun tracks nested spring
+    // settings as well as the top-level fields.
+    return autorun(
+      () => {
+        writePersistedState({
+          blocksData: toJS(this.blocksData),
+          dragSwingSettings: toJS(this.dragSwingSettings),
+        });
+      },
+      { delay: PERSIST_DEBOUNCE_MS }
+    );
   }
 
   reorderBlocks(pageId: string, newOrder: string[]) {
@@ -191,8 +317,15 @@ export function useStore(): Store {
   return useContext(StoreContext);
 }
 
+// Runs after hydration but before paint, so the persisted order is applied
+// without a visible flash of the default order. There is no server equivalent.
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 // Provider
 export function StoreProvider({ children }: React.PropsWithChildren) {
+  useIsomorphicLayoutEffect(() => store.startPersisting(), []);
+
   return (
     <StoreContext.Provider value={store}>{children}</StoreContext.Provider>
   );
