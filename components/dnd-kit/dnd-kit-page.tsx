@@ -25,7 +25,6 @@ import {
   TrackedTouchSensor,
 } from "@/lib/dnd/tracked-sensors";
 import { useStore } from "@/lib/stores/store";
-import { cn } from "@/lib/utils";
 
 import { ContentCard } from "./content-card";
 import { DragSwingOverlay } from "./drag-swing-overlay";
@@ -128,12 +127,7 @@ export const EditorPage = observer(() => {
           <div className="mx-auto w-full max-w-6xl">
             <div className="flex flex-col gap-6 p-4">
               <div className="min-w-0 flex-1 overflow-auto">
-                <div
-                  aria-hidden={!store.isHydrated}
-                  className={cn("mx-auto max-w-lg py-2", {
-                    "pointer-events-none invisible": !store.isHydrated,
-                  })}
-                >
+                <div className="mx-auto max-w-lg py-2">
                   <SortableContext
                     items={sortedIds}
                     strategy={verticalListSortingStrategy}
