@@ -13,8 +13,19 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Perfect DnD",
+  alternates: {
+    canonical: "/perfect-dnd",
+  },
+  authors: [{ name: "Matthew Blode", url: "https://blode.co" }],
   description: "Drag and drop made simple",
+  metadataBase: new URL("https://blode.co"),
+  openGraph: {
+    description: "Drag and drop made simple",
+    title: "Perfect DnD",
+    type: "website",
+    url: "/perfect-dnd",
+  },
+  title: "Perfect DnD",
 };
 
 export const viewport: Viewport = {
@@ -38,7 +49,7 @@ export default function RootLayout({
           <CraftedBy />
         </footer>
       </body>
-      <GoogleAnalytics gaId="G-6LQHMQ7E0H" />
+      <GoogleAnalytics gaId="G-DZD6C8C6HT" />
     </html>
   );
 }
