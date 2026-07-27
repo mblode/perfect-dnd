@@ -5,7 +5,6 @@ const basePath = "/perfect-dnd";
 const nextConfig: NextConfig = {
   assetPrefix: basePath,
   basePath,
-  typescript: { ignoreBuildErrors: true },
   reactCompiler: true,
   redirects() {
     return Promise.resolve([

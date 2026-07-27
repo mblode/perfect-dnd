@@ -7,5 +7,3 @@ export interface BlockData {
   order: number;
   pageId: string;
 }
-
-export type DropPosition = "above" | "below" | null;

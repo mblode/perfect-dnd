@@ -8,13 +8,13 @@ Spring physics drag-and-drop with velocity-driven swing animations, built on dnd
 - **Spring settling animation:** On drop, cards spring back to their final position with configurable stiffness, damping, and mass.
 - **Two-phase drag system:** A drag overlay handles in-flight animation; a settling overlay takes over on release and animates independently of dnd-kit.
 - **Custom spring physics:** Hand-rolled Euler-integrated spring simulation with live target tracking — no Framer Motion dependency.
-- **Tunable parameters:** Adjust velocity scale, max rotation, drag scale, and both rotation and scale springs through a live settings panel.
+- **Tunable parameters:** Velocity scale, max rotation, drag scale, and both springs are settings on the store, applied live to the running simulation. No settings UI ships yet.
 - **Touch + keyboard support:** iOS-friendly touch sensor with scroll/drag disambiguation; full keyboard drag via dnd-kit's `KeyboardSensor`.
-- **Persistent state:** Block order and physics settings are saved to `localStorage` via MobX Persist Store.
+- **Persistent state:** Block order and physics settings are saved to `localStorage`, validated on read so a stale or hand-edited payload cannot feed NaN into the springs.
 
 ## Getting Started
 
-Requires Node.js 20+.
+Requires Node.js 24+.
 
 ```bash
 git clone https://github.com/mblode/perfect-dnd.git
@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000/perfect-dnd](http://localhost:3000/perfect-dnd) (the app is served under a `basePath`).
 
 ## Development
 
@@ -32,8 +32,11 @@ npm run dev                  # Start dev server
 npm run build                # Production build
 npm run check-types          # TypeScript type check
 npm run lint                 # Check for lint issues
-npm exec -- ultracite fix    # Auto-fix formatting and lint issues
+npm run lint:fix             # Auto-fix formatting and lint issues
 ```
+
+Architecture notes, including why the drag lifecycle has a single owner, are in
+[docs/architecture.md](docs/architecture.md).
 
 ## Tech Stack
 
@@ -41,7 +44,7 @@ npm exec -- ultracite fix    # Auto-fix formatting and lint issues
 - [dnd-kit](https://dndkit.com/) — drag-and-drop primitives
 - [MobX](https://mobx.js.org/) — reactive state management
 - [Tailwind CSS v4](https://tailwindcss.com/) — utility-first styling
-- [Biome](https://biomejs.dev/) + [Ultracite](https://github.com/haydenbleasel/ultracite) — linting and formatting
+- [Ultracite](https://github.com/haydenbleasel/ultracite) (oxlint + oxfmt) — linting and formatting
 
 ---
 

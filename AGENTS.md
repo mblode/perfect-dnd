@@ -1,34 +1,64 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-- `app/` contains the Next.js App Router, global styles, and metadata assets (for example `app/page.tsx`, `app/layout.tsx`, `app/globals.css`, and icons).
-- `components/` holds shared UI components.
-- `hooks/` holds reusable React hooks.
-- `lib/` contains shared utilities and state/helpers used across features.
-- `types/` contains shared TypeScript types.
-- `public/` contains static assets served from the site root.
+A single-page dnd-kit demo: a sortable list whose drag tilt and drop settle are
+driven by a hand-rolled spring simulation. There is no backend and no test
+suite; `check-types`, `lint`, and a real browser drag are the quality gates.
 
-## Build, Test, and Development Commands
-- `npm run dev`: start the local dev server (default: `http://localhost:3000`).
-- `npm run build`: create a production build with Next.js.
-- `npm run start`: run the production build locally.
-- `npm run lint`: run Biome lint checks across the repo.
-- `npm run lint:fix`: auto-fix lint issues with Biome.
-- `npm run format`: format files with Biome (`npm run format:check` verifies formatting).
-- `npm run check-types`: run TypeScript type checking without emitting output.
+## Commands
 
-## Coding Style & Naming Conventions
-- TypeScript + React throughout; prefer `*.tsx` for components and `*.ts` for utilities.
-- Indentation is 2 spaces, enforced by Biome (`biome.json`).
-- Hooks should be named with the `useX` prefix; components should use `PascalCase`.
-- Formatting is enforced via Biome and `ultracite`; the pre-commit hook runs `npx ultracite fix` on staged files.
+- `npm run dev` — dev server on `http://localhost:3000/perfect-dnd` (note the `basePath`).
+- `npm run build` — production build. Type errors fail the build.
+- `npm run check-types` — `tsc --noEmit`.
+- `npm run lint` / `npm run lint:fix` — Ultracite (oxlint + oxfmt).
+- `npm run format` / `npm run format:check` — oxfmt.
 
-## Testing Guidelines
-- No dedicated test framework or test folders are present in the repo today.
-- Current quality gates are `npm run lint` and `npm run check-types`.
-- If you add tests, keep them close to the feature and use a clear suffix like `*.test.ts(x)`.
+Lefthook runs `npx ultracite check` on staged files pre-commit.
 
-## Commit & Pull Request Guidelines
-- Recent commit history uses very short summaries (e.g., “Save”, “analytics”, “opengraph”). Keep messages brief and imperative; add a scope if it clarifies intent.
-- PRs should include a concise description, the impact on UI/behavior, and how you validated changes (commands or manual steps).
-- For UI changes, include before/after screenshots or a short recording. Link related issues if applicable.
+## Architecture
+
+Read `docs/architecture.md` before changing drag behaviour. The two rules that
+are not obvious from the code:
+
+- **One owner for the drag lifecycle.** `Store.dragPhase` is a tagged union
+  (`idle | dragging | settling`) in `lib/dnd/drag-phase.ts`. Only
+  `dnd-kit-page.tsx` transitions it. `useDragSwing` reports what the pointer
+  did through `onRelease` and never writes to the store; adding a store write
+  there reintroduces the cancel race the union was built to remove.
+- **Physics never renders.** Springs run on rAF and write CSS custom properties
+  and inline transforms straight to the DOM. Nothing in `lib/spring/` may cause
+  a React render; a `setState` in a frame callback drops the animation to React's
+  render rate.
+
+`lib/dnd/dom.ts` holds the data-attribute contract between the list and the
+overlays. `app/globals.css` also styles those attributes, so renaming one there
+means editing the CSS too.
+
+## Gotchas
+
+- `useDragSwing` has no `onDragStart` handler on purpose. The overlay that
+  mounts it only renders after a drag is already in flight, so dnd-kit has
+  already dispatched `onDragStart` before a monitor can register. Mounting is
+  the drag-start signal.
+- Spring settings come from persisted, untrusted JSON. `lib/stores/persistence.ts`
+  copies only finite numbers; a NaN reaching the integrator poisons every later
+  frame with no error.
+- dnd-kit logs a hydration mismatch on `aria-describedby` in dev. Its
+  `useUniqueId` uses a module-level counter rather than `useId`, so server and
+  client disagree. It is a library bug, not ours; do not try to "fix" it in app code.
+- `requestAnimationFrame` is frozen in a hidden tab, so a settle pauses when the
+  tab is backgrounded. The settle watchdog is wall-clock based, so it lands the
+  card on target as soon as the tab returns. Automated browser drags need a
+  visible tab or they appear stuck.
+
+## Testing
+
+No test framework. Verify drag changes in a browser: drag a card, confirm the
+order changes, the card flies back into its slot, and the list returns to rest
+with no overlay left behind (`document.querySelectorAll('[data-settling-target]')`
+should be empty). If you add tests, colocate them as `*.test.ts(x)`.
+
+## Commits & PRs
+
+Short, imperative summaries with a scope when it clarifies (`analytics: …`).
+PRs describe the behaviour change and how it was validated; include a recording
+for motion changes, since a screenshot cannot show a spring.

@@ -1,7 +1,14 @@
 import { defineConfig } from "oxlint";
+import core from "ultracite/oxlint/core";
+import next from "ultracite/oxlint/next";
+import react from "ultracite/oxlint/react";
 
-// Existing source predates Ultracite's strict rule set; dependency upgrades keep
-// formatting enforced while lint-rule adoption remains a separate migration.
+// Ultracite's full rule set, enabled. Anything a linter can decide
+// deterministically belongs here rather than in AGENTS.md, where a written
+// rule decays under context pressure and an exit code does not.
 export default defineConfig({
+  ...core,
+  ...react,
+  ...next,
   ignorePatterns: [".next/**", "node_modules/**"],
 });

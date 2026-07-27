@@ -3,7 +3,18 @@
 import { observer } from "mobx-react-lite";
 import { useLayoutEffect, useRef } from "react";
 
-import { createLiveSpring, POSITION_SPRING_CONFIG } from "@/lib/spring";
+import {
+  centerBoxOn,
+  findSettlingTarget,
+  FLAT_SHADOW,
+  LIFTED_SHADOW,
+  SETTLING_OVERLAY_Z_INDEX,
+  SHADOW_FADE_MS,
+} from "@/lib/dnd/dom";
+import type { SettleOrigin } from "@/lib/dnd/drag-phase";
+import { runSpringLoop } from "@/lib/spring/loop";
+import { POSITION_SPRING_CONFIG, REST_SCALE } from "@/lib/spring/settings";
+import { createSpring } from "@/lib/spring/spring";
 import { useStore } from "@/lib/stores/store";
 import type { BlockData } from "@/types/block";
 
@@ -11,208 +22,126 @@ import { CardInner } from "./card-inner";
 
 interface SettlingOverlayProps {
   block: BlockData;
-  onAnimationComplete: () => void;
+  /** Where the card was when the pointer was released. */
+  origin: SettleOrigin;
+  onComplete: () => void;
 }
 
+/**
+ * Flies a released card back into its slot in the list.
+ *
+ * Runs outside dnd-kit, which drops its own overlay the moment the pointer
+ * comes up. Position, tilt, and scale each get their own spring, so the card
+ * can still be rotating as it arrives.
+ */
 export const SettlingOverlay = observer(
-  ({ block, onAnimationComplete }: SettlingOverlayProps) => {
+  ({ block, origin, onComplete }: SettlingOverlayProps) => {
     const store = useStore();
-    const containerRef = useRef<HTMLDivElement>(null);
-    const wrapperRef = useRef<HTMLDivElement>(null);
+    const positionRef = useRef<HTMLDivElement>(null);
+    const transformRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
-    const animationFrameRef = useRef<number | null>(null);
 
-    const rect = store.dropAnimationRect;
-    const rotation = store.dropAnimationRotation;
-    const scale = store.dropAnimationScale;
-    const dragSwingSettings = store.dragSwingSettings;
+    // Read through refs so neither can be an effect dependency: a settle is a
+    // one-shot animation, and re-running the effect would cancel the loop and
+    // restart the card mid-flight. Moving a physics slider or re-rendering the
+    // parent must not do that.
+    const settingsRef = useRef(store.dragSwingSettings);
+    settingsRef.current = store.dragSwingSettings;
+    const onCompleteRef = useRef(onComplete);
+    onCompleteRef.current = onComplete;
 
     useLayoutEffect(() => {
-      if (
-        !(rect && containerRef.current && wrapperRef.current && cardRef.current)
-      ) {
+      const position = positionRef.current;
+      const transform = transformRef.current;
+      const card = cardRef.current;
+      const target = findSettlingTarget(block.id);
+
+      if (!(position && transform && card && target)) {
+        // Nothing to fly back to: the list card is gone, or the overlay never
+        // mounted. Hand control back rather than stranding the card mid-air.
+        onCompleteRef.current();
         return;
       }
 
-      // Find the target content-card position
-      const targetElement = document.querySelector(
-        `[data-settling-target="${block.id}"]`
-      ) as HTMLElement | null;
+      const { rect } = origin;
+      const { left: targetLeft, top: targetTop } = centerBoxOn(
+        target.getBoundingClientRect(),
+        rect
+      );
 
-      if (!targetElement) {
-        // No target found, just complete immediately
-        onAnimationComplete();
-        return;
-      }
-
-      const targetRect = targetElement.getBoundingClientRect();
-      const targetCenterX = targetRect.left + targetRect.width / 2;
-      const targetCenterY = targetRect.top + targetRect.height / 2;
-      const targetLeft = targetCenterX - rect.width / 2;
-      const targetTop = targetCenterY - rect.height / 2;
-
-      const xSpring = createLiveSpring(POSITION_SPRING_CONFIG);
-      const ySpring = createLiveSpring(POSITION_SPRING_CONFIG);
-      const rotationSpring = createLiveSpring({
-        stiffness: dragSwingSettings.rotationSpring.stiffness,
-        damping: dragSwingSettings.rotationSpring.damping,
-        mass: dragSwingSettings.rotationSpring.mass,
-        restSpeed: dragSwingSettings.rotationSpring.restSpeed,
-        restDistance: dragSwingSettings.rotationSpring.restDistance,
-      });
-      const scaleSpring = createLiveSpring({
-        stiffness: dragSwingSettings.scaleSpring.stiffness,
-        damping: dragSwingSettings.scaleSpring.damping,
-        restSpeed: dragSwingSettings.scaleSpring.restSpeed,
-        restDistance: dragSwingSettings.scaleSpring.restDistance,
-      });
+      const settings = settingsRef.current;
+      const xSpring = createSpring(POSITION_SPRING_CONFIG);
+      const ySpring = createSpring(POSITION_SPRING_CONFIG);
+      const rotationSpring = createSpring(settings.rotationSpring);
+      const scaleSpring = createSpring(settings.scaleSpring);
 
       xSpring.setCurrent(rect.left);
       xSpring.setTarget(targetLeft);
       ySpring.setCurrent(rect.top);
       ySpring.setTarget(targetTop);
-      rotationSpring.setCurrent(rotation);
+      rotationSpring.setCurrent(origin.rotation);
       rotationSpring.setTarget(0);
-      scaleSpring.setCurrent(scale);
-      scaleSpring.setTarget(1);
+      scaleSpring.setCurrent(origin.scale);
+      scaleSpring.setTarget(REST_SCALE);
 
-      // Shadow fade (linear, no spring needed)
-      const currentShadow =
-        "0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 12px 24px -8px rgba(0, 0, 0, 0.1)";
-      const noShadow =
-        "0 25px 50px -12px rgba(0, 0, 0, 0), 0 12px 24px -8px rgba(0, 0, 0, 0)";
+      const draw = (left: number, top: number, scale: number, deg: number) => {
+        position.style.transform = `translate(${left}px, ${top}px)`;
+        transform.style.transform = `scale(${scale}) rotate(${deg}deg)`;
+      };
 
-      const shadowAnimation = cardRef.current.animate(
-        [{ boxShadow: currentShadow }, { boxShadow: noShadow }],
-        {
-          duration: 200,
-          easing: "ease-out",
-          fill: "forwards",
-        }
+      // Linear fade; the shadow is not carrying any physics.
+      const shadow = card.animate(
+        [{ boxShadow: LIFTED_SHADOW }, { boxShadow: FLAT_SHADOW }],
+        { duration: SHADOW_FADE_MS, easing: "ease-out", fill: "forwards" }
       );
 
-      let settleStartTime: number | null = null;
-      let settleFrameCount = 0;
-      let didComplete = false;
-      const MAX_SETTLE_FRAMES = 120;
-      const MAX_SETTLE_DURATION_MS = 2000;
+      const loop = runSpringLoop({
+        untilRest: true,
+        onFrame(now) {
+          const x = xSpring.step(now);
+          const y = ySpring.step(now);
+          const rotation = rotationSpring.step(now);
+          const scale = scaleSpring.step(now);
 
-      const finish = () => {
-        if (didComplete) {
-          return;
-        }
-        didComplete = true;
-        onAnimationComplete();
-      };
+          draw(x.value, y.value, scale.value, rotation.value);
 
-      const setFinalStyles = () => {
-        if (containerRef.current) {
-          containerRef.current.style.transform = `translate(${targetLeft}px, ${targetTop}px)`;
-        }
-        if (wrapperRef.current) {
-          wrapperRef.current.style.transform = "scale(1) rotate(0deg)";
-        }
-      };
+          return x.atRest && y.atRest && rotation.atRest && scale.atRest;
+        },
+        onEnd() {
+          // Land exactly on target, whether the springs rested or timed out.
+          draw(targetLeft, targetTop, REST_SCALE, 0);
+          onCompleteRef.current();
+        },
+      });
 
-      const animate = () => {
-        const now = performance.now();
-        if (settleStartTime === null) {
-          settleStartTime = now;
-        }
-        settleFrameCount += 1;
-
-        if (
-          settleFrameCount > MAX_SETTLE_FRAMES ||
-          now - settleStartTime > MAX_SETTLE_DURATION_MS
-        ) {
-          setFinalStyles();
-          finish();
-          animationFrameRef.current = null;
-          return;
-        }
-
-        const xState = xSpring.step(now);
-        const yState = ySpring.step(now);
-        const rotationState = rotationSpring.step(now);
-        const scaleState = scaleSpring.step(now);
-
-        if (containerRef.current) {
-          containerRef.current.style.transform = `translate(${xState.value}px, ${yState.value}px)`;
-        }
-        if (wrapperRef.current) {
-          wrapperRef.current.style.transform = `scale(${scaleState.value}) rotate(${rotationState.value}deg)`;
-        }
-
-        const allDone =
-          xState.done && yState.done && rotationState.done && scaleState.done;
-
-        if (allDone) {
-          setFinalStyles();
-          finish();
-          animationFrameRef.current = null;
-          return;
-        }
-
-        animationFrameRef.current = requestAnimationFrame(animate);
-      };
-
-      animationFrameRef.current = requestAnimationFrame(animate);
-
-      // Cleanup: cancel animations on unmount to prevent iOS Safari memory leaks
       return () => {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
-        shadowAnimation.cancel();
+        loop.cancel();
+        shadow.cancel();
       };
-    }, [
-      rect,
-      rotation,
-      scale,
-      block.id,
-      onAnimationComplete,
-      dragSwingSettings.rotationSpring.stiffness,
-      dragSwingSettings.rotationSpring.damping,
-      dragSwingSettings.rotationSpring.mass,
-      dragSwingSettings.rotationSpring.restSpeed,
-      dragSwingSettings.rotationSpring.restDistance,
-      dragSwingSettings.scaleSpring.stiffness,
-      dragSwingSettings.scaleSpring.damping,
-      dragSwingSettings.scaleSpring.restSpeed,
-      dragSwingSettings.scaleSpring.restDistance,
-    ]);
-
-    if (!rect) {
-      return null;
-    }
+    }, [block.id, origin]);
 
     return (
       <div
-        ref={containerRef}
+        className="pointer-events-none fixed top-0 left-0"
+        ref={positionRef}
         style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: rect.width,
-          height: rect.height,
-          transform: `translate(${rect.left}px, ${rect.top}px)`,
-          zIndex: 9999,
-          pointerEvents: "none",
+          width: origin.rect.width,
+          height: origin.rect.height,
+          transform: `translate(${origin.rect.left}px, ${origin.rect.top}px)`,
+          zIndex: SETTLING_OVERLAY_Z_INDEX,
         }}
       >
         <div
-          ref={wrapperRef}
+          className="h-full w-full origin-center"
+          ref={transformRef}
           style={{
-            width: "100%",
-            height: "100%",
-            transform: `scale(${scale}) rotate(${rotation}deg)`,
-            transformOrigin: "center center",
+            transform: `scale(${origin.scale}) rotate(${origin.rotation}deg)`,
           }}
         >
           <div
-            className="rounded-xl border border-border bg-white p-4 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15),0_12px_24px_-8px_rgba(0,0,0,0.1)]"
+            className="rounded-xl border border-border bg-white p-4"
             ref={cardRef}
+            style={{ boxShadow: LIFTED_SHADOW }}
           >
             <CardInner block={block} />
           </div>

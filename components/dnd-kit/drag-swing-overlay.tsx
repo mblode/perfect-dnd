@@ -2,56 +2,49 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
+import type { UseDragSwingOptions } from "@/hooks/use-drag-swing";
 import { useDragSwing } from "@/hooks/use-drag-swing";
 import type { BlockData } from "@/types/block";
 
 import { DragOverlayCard } from "./drag-overlay-card";
 
-interface DragSwingOverlayProps {
+interface DragSwingOverlayProps extends UseDragSwingOptions {
   block: BlockData;
 }
 
-export function DragSwingOverlay({ block }: DragSwingOverlayProps) {
-  const { overlayRef, scaleRef } = useDragSwing();
+/**
+ * The card while it is held: scale on the outer element, tilt on the inner
+ * one, so the two springs never overwrite each other's transform.
+ *
+ * The card is measured once and then taken out of flow, so tilting it cannot
+ * change the height of the overlay and shift the list underneath.
+ */
+export function DragSwingOverlay({ block, onRelease }: DragSwingOverlayProps) {
+  const { overlayRef, scaleRef } = useDragSwing({ onRelease });
 
   const measureRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState<{ width: number; height: number } | null>(
-    null
-  );
+  const [height, setHeight] = useState<number | null>(null);
 
   useLayoutEffect(() => {
-    if (measureRef.current && !size) {
-      const rect = measureRef.current.getBoundingClientRect();
-      setSize({ width: rect.width, height: rect.height });
+    if (height === null && measureRef.current) {
+      setHeight(measureRef.current.getBoundingClientRect().height);
     }
-  }, [size]);
+  }, [height]);
 
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        height: size?.height,
-      }}
-    >
+    <div className="relative w-full" style={{ height: height ?? undefined }}>
       <div
+        className="top-0 left-0 w-full origin-center"
         ref={scaleRef}
         style={{
-          position: size ? "absolute" : "relative",
-          top: 0,
-          left: 0,
-          width: "100%",
+          position: height === null ? "relative" : "absolute",
           transform: "scale(var(--motion-scale, 1))",
-          transformOrigin: "center center",
         }}
       >
         <div
+          className="w-full origin-center"
           ref={overlayRef}
-          style={{
-            width: "100%",
-            transform: "rotate(var(--motion-rotate, 0deg))",
-            transformOrigin: "center center",
-          }}
+          style={{ transform: "rotate(var(--motion-rotate, 0deg))" }}
         >
           <DragOverlayCard block={block} ref={measureRef} />
         </div>
