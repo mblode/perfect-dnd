@@ -128,6 +128,15 @@ export const EditorPage = observer(() => {
             <div className="flex flex-col gap-6 p-4">
               <div className="min-w-0 flex-1 overflow-auto">
                 <div className="mx-auto max-w-lg py-2">
+                  <header className="mb-6">
+                    <h1 className="font-semibold text-2xl tracking-tight">
+                      Perfect DnD
+                    </h1>
+                    <p className="mt-1 text-muted-foreground text-sm">
+                      Pick up a block and drop it somewhere else. Drag and drop
+                      made simple, built on dnd-kit.
+                    </p>
+                  </header>
                   <SortableContext
                     items={sortedIds}
                     strategy={verticalListSortingStrategy}
