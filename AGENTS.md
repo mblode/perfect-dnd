@@ -1,13 +1,14 @@
 # Repository Guidelines
 
 A single-page dnd-kit demo: a sortable list whose drag tilt and drop settle are
-driven by a hand-rolled spring simulation. There is no backend and no test
-suite; `check-types`, `lint`, and a real browser drag are the quality gates.
+driven by a hand-rolled spring simulation. There is no backend. `check-types`,
+`lint`, `test`, and a real browser drag are the quality gates.
 
 ## Commands
 
 - `npm run dev` — dev server on `http://localhost:3000/perfect-dnd` (note the `basePath`).
 - `npm run build` — production build. Type errors fail the build.
+- `npm test` / `npm run test:watch` — vitest, node environment.
 - `npm run check-types` — `tsc --noEmit`.
 - `npm run lint` / `npm run lint:fix` — Ultracite (oxlint + oxfmt).
 - `npm run format` / `npm run format:check` — oxfmt.
@@ -52,10 +53,19 @@ means editing the CSS too.
 
 ## Testing
 
-No test framework. Verify drag changes in a browser: drag a card, confirm the
-order changes, the card flies back into its slot, and the list returns to rest
-with no overlay left behind (`document.querySelectorAll('[data-settling-target]')`
-should be empty). If you add tests, colocate them as `*.test.ts(x)`.
+Vitest covers the pure logic only: the spring integrator, the velocity tracker,
+and the `dragPhase` state machine. All of it takes its clock as an argument, so
+the tests run in a node environment with no DOM. Colocate as `*.test.ts`.
+
+Everything else needs a real browser drag, and the tests do not replace it.
+After changing drag behaviour: drag a card, confirm the order changes, the card
+flies back into its slot, and the list returns to rest with nothing left behind
+(`[data-settling-target]` and any `.pointer-events-none.fixed` overlay should
+both be gone).
+
+When fixing a physics or lifecycle bug, add the failing case first and confirm
+it fails against the unfixed code. Several existing tests were written that way
+and will catch a regression only because they were proven to fail.
 
 ## Commits & PRs
 

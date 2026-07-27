@@ -9,7 +9,7 @@ unambiguous; everything else is deliberately small.
 - One deployable surface: a static Next.js App Router page under `basePath: /perfect-dnd`.
 - No backend, no auth, no tenancy. State is a demo list plus physics settings in `localStorage`.
 - Team size 1. Quality bar is "the drag feels right and never strands a card".
-- No test framework. Type check, lint, and a browser drag are the gates.
+- Type check, lint, unit tests, and a browser drag are the gates.
 
 ## Repo shape
 
@@ -20,7 +20,7 @@ cycles for no second consumer.
 app/            Route, layout, global CSS
 components/
   dnd-kit/      The list, the two overlays, the card
-  ui/           shadcn primitives (currently unused; see Open risks)
+                (no ui/ yet; components.json points shadcn here when needed)
 hooks/          useDragSwing: the in-flight physics hook
 lib/
   dnd/          Drag lifecycle type, DOM contract, sensors, pointer tracking
@@ -110,14 +110,27 @@ noted in that file because CSS cannot be type-checked against it.
 
 ## Testing strategy
 
-No framework today. The gates are `npm run check-types`, `npm run lint`, and a
-manual browser drag. `lib/spring/` was carved out to be unit-testable without a
-DOM if that changes: `createSpring`, `createVelocityTracker`, and
-`velocityToRotation` are pure and take their clock as an argument.
+Vitest in a node environment, covering the pure logic that can regress silently
+and independently of its callers: the spring integrator, the velocity tracker,
+and the `dragPhase` state machine. `lib/spring/` was carved out to make this
+possible; everything under test takes its clock as an argument, so no DOM, no
+fake timers, and no component harness are involved.
 
-Verified for this change in Chrome: drag reorders the list, the card flies back
-into its slot, the phase returns to idle, order persists to `localStorage`, and
-no overlay or placeholder is left behind.
+Deliberately not covered, because it would need a browser rather than a unit
+test: the pointer-delta fallback in `handleDragMove`, and the "overlay card
+element is missing" path through `findOverlayCard`.
+
+Each regression test was proven to fail against the unfixed code. Reverting the
+velocity guard to its old `=== POSITIVE_INFINITY` form, removing the
+`MAX_FRAME_MS` clamp, or removing the `beginSettling` dragging-only guard each
+fails exactly the tests naming that behaviour, and nothing else. A test that has
+never been seen to fail is not yet coverage.
+
+The browser check is still a gate, not a formality. Verified in Chrome for this
+change: drag reorders the list, the card flies back into its slot, the phase
+returns to idle, order persists to `localStorage`, a hand-edited empty
+`blocksData` falls back to the demo blocks, and no overlay or placeholder is
+left behind.
 
 ## Quality bar and guardrails
 
@@ -127,6 +140,7 @@ no overlay or placeholder is left behind.
 | Build type safety | `typescript.ignoreBuildErrors: true` | Removed; type errors fail the build |
 | `lint:fix`, `format:check` | Called `biome`, which is not a dependency | Use ultracite / oxfmt |
 | Suppressions | A `biome-ignore` in an oxlint repo, suppressing nothing | `oxlint-disable-next-line` with a reason |
+| Tests | No framework, no `test` script | Vitest over the physics and the drag state machine |
 
 The stale comment claiming the source "predates Ultracite's strict rule set"
 was wrong: enabling the full set produced exactly one violation, in a file with
@@ -141,19 +155,28 @@ needs no data work. Rollback is `git revert`.
 
 ## Open risks and follow-ups
 
-- **`components/ui/` is unused.** Six shadcn primitives with no importers, kept
-  because they are exactly the parts a settings panel needs and the store API
-  for it already exists. Either build the panel or delete them; leaving both is
-  the entropy this brief otherwise argues against.
 - **No settings UI.** The store exposes setters, persistence, and live
-  reconfiguration, and nothing drives them. The README no longer claims a panel.
+  reconfiguration, and nothing drives them. This is the one remaining dead
+  surface: `setDragSwingSetting`, `setRotationSpringSetting`,
+  `setScaleSpringSetting`, and `resetDragSwingSettings` have no callers. They
+  are kept because deleting them also makes settings persistence, the
+  finite-number validation, and the live `autorun` reconfiguration pointless,
+  which removes the tunability the project exists to demonstrate. Build the
+  panel or delete the whole subsystem; do not leave it half-owned much longer.
+  The six shadcn primitives that would have built that panel were deleted, along
+  with the five Radix and CVA dependencies that existed only for them;
+  `components.json` remains, so `npx shadcn add` brings any of them back.
 - **Drop-position indicator removed.** `overBlockId` / `dropPosition` were
   written on every drag-over and never read. Deleted rather than left as a
   half-built feature; re-add with the indicator that needs it.
 - **Import boundaries are review-enforced, not lint-enforced.** Acceptable at
-  four modules; add a rule if the app grows.
+  four modules; add a rule if the app grows. In particular nothing mechanically
+  stops `lib/spring/` importing React or dnd-kit, which would break the property
+  that makes it unit-testable in a node environment.
 - **dnd-kit hydration warning.** `useUniqueId` uses a module counter rather than
   `useId`, so `aria-describedby` mismatches in dev. Library-internal and
   pre-existing; do not work around it in app code.
-- **No automated tests.** The physics is now shaped to allow them; nothing
-  currently prevents a regression in the drag lifecycle except a manual drag.
+- **Component and integration behaviour is untested.** The drag lifecycle is
+  covered at the store, and the physics at the function, but nothing exercises
+  `useDragSwing` or the two overlays. A regression in how they are wired
+  together still only shows up in a manual drag.
