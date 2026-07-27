@@ -1,3 +1,18 @@
+/**
+ * VENDORED FORK of dnd-kit's internal `AbstractPointerSensor`, plus its Mouse
+ * and Touch subclasses (@dnd-kit/core 6.x).
+ *
+ * Forked for one reason: dnd-kit reports drag *deltas*, and the swing physics
+ * needs absolute pointer positions at native event rate. The sensor already
+ * sees every raw event, so it records them into `pointer-tracker`. The three
+ * added lines are the `setPointerPosition*` / `clearPointerPosition` calls;
+ * everything else is upstream code kept deliberately close to the original.
+ *
+ * Do not refactor this to match local style. Diff it against upstream when
+ * bumping @dnd-kit/core, and delete it entirely if dnd-kit ever exposes
+ * pointer coordinates directly.
+ */
+
 import type {
   DistanceMeasurement,
   PointerActivationConstraint,
