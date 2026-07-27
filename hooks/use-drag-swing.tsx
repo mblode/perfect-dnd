@@ -3,7 +3,6 @@
 import type { DragMoveEvent } from "@dnd-kit/core";
 import { useDndMonitor } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
-import { autorun, toJS } from "mobx";
 import { useCallback, useEffect, useRef } from "react";
 
 import {
@@ -16,14 +15,13 @@ import type { SettleOrigin } from "@/lib/dnd/drag-phase";
 import { getPointerPosition } from "@/lib/dnd/pointer-tracker";
 import type { SpringLoop } from "@/lib/spring/loop";
 import { runSpringLoop } from "@/lib/spring/loop";
-import { REST_SCALE } from "@/lib/spring/settings";
+import { DRAG_SWING_SETTINGS, REST_SCALE } from "@/lib/spring/settings";
 import { createSpring } from "@/lib/spring/spring";
 import type { Point } from "@/lib/spring/velocity";
 import {
   createVelocityTracker,
   velocityToRotation,
 } from "@/lib/spring/velocity";
-import { useStore } from "@/lib/stores/store";
 
 export interface UseDragSwingOptions {
   /**
@@ -64,18 +62,15 @@ const SHADOW_LIFT_EASING = "cubic-bezier(.2, 0, 0, 1)";
 export function useDragSwing({
   onRelease,
 }: UseDragSwingOptions): UseDragSwingReturn {
-  const store = useStore();
-
   const overlayRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef<HTMLDivElement>(null);
 
   // Physics updates every frame and must never trigger a render, so all of it
   // lives in refs and is written straight to the DOM.
-  const settingsRef = useRef(toJS(store.dragSwingSettings));
   const rotationSpringRef = useRef(
-    createSpring(settingsRef.current.rotationSpring)
+    createSpring(DRAG_SWING_SETTINGS.rotationSpring)
   );
-  const scaleSpringRef = useRef(createSpring(settingsRef.current.scaleSpring));
+  const scaleSpringRef = useRef(createSpring(DRAG_SWING_SETTINGS.scaleSpring));
   const velocityRef = useRef(createVelocityTracker());
   const loopRef = useRef<SpringLoop | null>(null);
 
@@ -89,17 +84,6 @@ export function useDragSwing({
   const onReleaseRef = useRef(onRelease);
   onReleaseRef.current = onRelease;
 
-  // Live settings: toJS deep-reads the observable, which both establishes
-  // tracking on the nested spring fields and yields a plain snapshot.
-  useEffect(() => {
-    return autorun(() => {
-      const settings = toJS(store.dragSwingSettings);
-      settingsRef.current = settings;
-      rotationSpringRef.current.setConfig(settings.rotationSpring);
-      scaleSpringRef.current.setConfig(settings.scaleSpring);
-    });
-  }, [store]);
-
   const applyRotation = useCallback((degrees: number) => {
     overlayRef.current?.style.setProperty("--motion-rotate", `${degrees}deg`);
   }, []);
@@ -110,7 +94,7 @@ export function useDragSwing({
 
   /** Record a position and steer the tilt spring at the resulting velocity. */
   const samplePointer = useCallback((now: number, pointer: Point) => {
-    const settings = settingsRef.current;
+    const settings = DRAG_SWING_SETTINGS;
     const velocity = velocityRef.current.sample(
       pointer,
       now,
@@ -139,7 +123,7 @@ export function useDragSwing({
 
     rotationSpring.setCurrent(0);
     scaleSpring.setCurrent(REST_SCALE);
-    scaleSpring.setTarget(settingsRef.current.dragScale);
+    scaleSpring.setTarget(DRAG_SWING_SETTINGS.dragScale);
     applyRotation(0);
     applyScale(REST_SCALE);
 

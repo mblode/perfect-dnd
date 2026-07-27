@@ -9,8 +9,6 @@ import {
   IDLE_PHASE,
   settlingBlockId,
 } from "@/lib/dnd/drag-phase";
-import type { DragSwingSettings } from "@/lib/spring/settings";
-import { getDragSwingDefaults } from "@/lib/spring/settings";
 import { DEFAULT_PAGE_ID, MOCK_BLOCKS } from "@/lib/stores/mock-blocks";
 import {
   PERSIST_DEBOUNCE_MS,
@@ -21,8 +19,6 @@ import type { BlockData } from "@/types/block";
 
 export class Store {
   blocksData: BlockData[] = MOCK_BLOCKS;
-
-  dragSwingSettings: DragSwingSettings = getDragSwingDefaults();
 
   /** The whole drag lifecycle. See `lib/dnd/drag-phase`. */
   dragPhase: DragPhase = IDLE_PHASE;
@@ -53,19 +49,13 @@ export class Store {
       if (persisted.blocksData) {
         this.blocksData = persisted.blocksData;
       }
-      if (persisted.dragSwingSettings) {
-        this.dragSwingSettings = persisted.dragSwingSettings;
-      }
     });
 
-    // toJS reads every nested value, so the autorun tracks nested spring
-    // settings as well as the top-level fields.
+    // toJS reads every nested value, so the autorun tracks each block's fields
+    // and not just the identity of the array.
     return autorun(
       () => {
-        writePersistedState({
-          blocksData: toJS(this.blocksData),
-          dragSwingSettings: toJS(this.dragSwingSettings),
-        });
+        writePersistedState({ blocksData: toJS(this.blocksData) });
       },
       { delay: PERSIST_DEBOUNCE_MS }
     );
@@ -82,31 +72,6 @@ export class Store {
       }
       return { ...block, order: newIndex };
     });
-  }
-
-  setDragSwingSetting<K extends keyof DragSwingSettings>(
-    key: K,
-    value: DragSwingSettings[K]
-  ) {
-    this.dragSwingSettings[key] = value;
-  }
-
-  setRotationSpringSetting<K extends keyof DragSwingSettings["rotationSpring"]>(
-    key: K,
-    value: DragSwingSettings["rotationSpring"][K]
-  ) {
-    this.dragSwingSettings.rotationSpring[key] = value;
-  }
-
-  setScaleSpringSetting<K extends keyof DragSwingSettings["scaleSpring"]>(
-    key: K,
-    value: DragSwingSettings["scaleSpring"][K]
-  ) {
-    this.dragSwingSettings.scaleSpring[key] = value;
-  }
-
-  resetDragSwingSettings() {
-    this.dragSwingSettings = getDragSwingDefaults();
   }
 
   beginDrag(blockId: string) {
@@ -136,7 +101,7 @@ export class Store {
 
 const store = new Store();
 
-export const StoreContext = createContext<Store>(store);
+const StoreContext = createContext<Store>(store);
 
 export function useStore(): Store {
   return useContext(StoreContext);

@@ -8,9 +8,9 @@ Spring physics drag-and-drop with velocity-driven swing animations, built on dnd
 - **Spring settling animation:** On drop, cards spring back to their final position with configurable stiffness, damping, and mass.
 - **Two-phase drag system:** A drag overlay handles in-flight animation; a settling overlay takes over on release and animates independently of dnd-kit.
 - **Custom spring physics:** Hand-rolled Euler-integrated spring simulation with live target tracking — no Framer Motion dependency.
-- **Tunable parameters:** Velocity scale, max rotation, drag scale, and both springs are settings on the store, applied live to the running simulation. No settings UI ships yet.
+- **Tunable parameters:** Velocity scale, max rotation, drag scale, and both spring configs live as named constants in `lib/spring/settings.ts`. Edit and reload; there is no settings UI.
 - **Touch + keyboard support:** iOS-friendly touch sensor with scroll/drag disambiguation; full keyboard drag via dnd-kit's `KeyboardSensor`.
-- **Persistent state:** Block order and physics settings are saved to `localStorage`, validated on read so a stale or hand-edited payload cannot feed NaN into the springs.
+- **Persistent state:** Block order is saved to `localStorage` and validated on read, so a stale or hand-edited payload falls back to the defaults rather than rendering a broken list.
 
 ## Getting Started
 
@@ -33,6 +33,7 @@ npm run build                # Production build
 npm test                     # Run the unit tests (vitest)
 npm run check-types          # TypeScript type check
 npm run lint                 # Check for lint issues
+npm run knip                 # Find unused files, exports and dependencies
 npm run lint:fix             # Auto-fix formatting and lint issues
 ```
 

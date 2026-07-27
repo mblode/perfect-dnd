@@ -1,7 +1,9 @@
 /**
- * User-tunable drag physics. Every field is a finite number, which is what
- * lets persisted values be validated generically (see `lib/stores/persistence`)
- * and handed straight to `createSpring` without field-by-field copying.
+ * How the drag feels. Tune these values here and reload; there is no runtime
+ * settings UI, so they are plain constants rather than store state.
+ *
+ * Every field is a finite number of the exact shape `createSpring` takes, so
+ * the springs are configured by passing these straight through.
  */
 
 import type { SpringConfig } from "@/lib/spring/spring";
@@ -38,7 +40,7 @@ export const POSITION_SPRING_CONFIG: ScaleSpringSettings = {
   restDistance: 0.5,
 };
 
-const DRAG_SWING_DEFAULTS: DragSwingSettings = {
+export const DRAG_SWING_SETTINGS: DragSwingSettings = {
   velocityWindowMs: VELOCITY_WINDOW_MS,
   velocityScale: VELOCITY_SCALE,
   maxRotation: MAX_ROTATION,
@@ -57,10 +59,3 @@ const DRAG_SWING_DEFAULTS: DragSwingSettings = {
     restDistance: 0.001,
   },
 };
-
-/** Fresh copy each call: the store mutates these in place as sliders move. */
-export const getDragSwingDefaults = (): DragSwingSettings => ({
-  ...DRAG_SWING_DEFAULTS,
-  rotationSpring: { ...DRAG_SWING_DEFAULTS.rotationSpring },
-  scaleSpring: { ...DRAG_SWING_DEFAULTS.scaleSpring },
-});
