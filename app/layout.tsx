@@ -1,4 +1,3 @@
-import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
@@ -49,7 +48,6 @@ export default function RootLayout({
           <CraftedBy />
         </footer>
       </body>
-      <GoogleAnalytics gaId="G-DZD6C8C6HT" />
     </html>
   );
 }
