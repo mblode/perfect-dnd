@@ -3,192 +3,42 @@
 import { autorun, makeAutoObservable, runInAction, toJS } from "mobx";
 import { createContext, useContext, useEffect, useLayoutEffect } from "react";
 
-import { type DragSwingSettings, getDragSwingDefaults } from "@/lib/spring";
-import type { BlockData, DropPosition } from "@/types/block";
-
-// Mock data for demo
-const MOCK_BLOCKS: BlockData[] = [
-  {
-    id: "block-1",
-    title: "My Portfolio",
-    type: "link",
-    url: "https://portfolio.com",
-    visible: true,
-    order: 0,
-    pageId: "page-1",
-  },
-  {
-    id: "block-2",
-    title: "About Me",
-    type: "header",
-    visible: true,
-    order: 1,
-    pageId: "page-1",
-  },
-  {
-    id: "block-3",
-    title: "Twitter",
-    type: "link",
-    url: "https://twitter.com",
-    visible: true,
-    order: 2,
-    pageId: "page-1",
-  },
-  {
-    id: "block-4",
-    title: "Instagram",
-    type: "link",
-    url: "https://instagram.com",
-    visible: false,
-    order: 3,
-    pageId: "page-1",
-  },
-  {
-    id: "block-5",
-    title: "Contact",
-    type: "text",
-    visible: true,
-    order: 4,
-    pageId: "page-1",
-  },
-];
-
-const STORAGE_KEY = "perfect-dnd-store";
-
-/** Debounced so dragging a settings slider doesn't write on every frame. */
-const PERSIST_DEBOUNCE_MS = 200;
-
-type PersistedState = {
-  blocksData: BlockData[];
-  dragSwingSettings: DragSwingSettings;
-};
-
-const BLOCK_TYPES = new Set<BlockData["type"]>(["link", "header", "text"]);
-
-const isBlockData = (value: unknown): value is BlockData => {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const block = value as Record<string, unknown>;
-  return (
-    typeof block.id === "string" &&
-    typeof block.title === "string" &&
-    typeof block.pageId === "string" &&
-    typeof block.order === "number" &&
-    typeof block.visible === "boolean" &&
-    BLOCK_TYPES.has(block.type as BlockData["type"])
-  );
-};
-
-/** Copies only finite numbers off the persisted payload, so a hand-edited or
- * stale entry can't feed NaN into the spring simulation. */
-const mergeNumbers = <T extends Record<string, number>>(
-  base: T,
-  override: unknown
-): T => {
-  if (typeof override !== "object" || override === null) {
-    return base;
-  }
-  const source = override as Record<string, unknown>;
-  const merged = { ...base };
-  for (const key of Object.keys(base)) {
-    const next = source[key];
-    if (typeof next === "number" && Number.isFinite(next)) {
-      merged[key as keyof T] = next as T[keyof T];
-    }
-  }
-  return merged;
-};
-
-const mergeDragSwingSettings = (value: unknown): DragSwingSettings => {
-  const { rotationSpring, scaleSpring, ...scalars } = getDragSwingDefaults();
-  const source = (value ?? {}) as Record<string, unknown>;
-
-  return {
-    ...mergeNumbers(scalars, source),
-    rotationSpring: mergeNumbers(rotationSpring, source.rotationSpring),
-    scaleSpring: mergeNumbers(scaleSpring, source.scaleSpring),
-  };
-};
-
-/**
- * localStorage is synchronous, so reading it needs no async plumbing. Anything
- * blocked, corrupt, or malformed resolves to defaults instead of leaving the
- * app without usable state.
- */
-const readPersistedState = (): Partial<PersistedState> => {
-  let raw: string | null = null;
-
-  try {
-    raw = window.localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return {}; // Storage disabled (private mode, blocked cookies).
-  }
-
-  if (!raw) {
-    return {};
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return {}; // Corrupt payload.
-  }
-
-  if (typeof parsed !== "object" || parsed === null) {
-    return {};
-  }
-
-  const { blocksData, dragSwingSettings } = parsed as Record<string, unknown>;
-
-  return {
-    blocksData:
-      Array.isArray(blocksData) && blocksData.every(isBlockData)
-        ? blocksData
-        : undefined,
-    dragSwingSettings:
-      dragSwingSettings === undefined
-        ? undefined
-        : mergeDragSwingSettings(dragSwingSettings),
-  };
-};
-
-const writePersistedState = (state: PersistedState) => {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Quota exceeded or storage blocked. Persistence is best-effort and must
-    // never take the app down with it.
-  }
-};
+import type { DragPhase, SettleOrigin } from "@/lib/dnd/drag-phase";
+import {
+  draggingBlockId,
+  IDLE_PHASE,
+  settlingBlockId,
+} from "@/lib/dnd/drag-phase";
+import type { DragSwingSettings } from "@/lib/spring/settings";
+import { getDragSwingDefaults } from "@/lib/spring/settings";
+import { DEFAULT_PAGE_ID, MOCK_BLOCKS } from "@/lib/stores/mock-blocks";
+import {
+  PERSIST_DEBOUNCE_MS,
+  readPersistedState,
+  writePersistedState,
+} from "@/lib/stores/persistence";
+import type { BlockData } from "@/types/block";
 
 export class Store {
   blocksData: BlockData[] = MOCK_BLOCKS;
 
   dragSwingSettings: DragSwingSettings = getDragSwingDefaults();
 
-  // Drag state
-  activeBlockId: string | null = null;
-  settlingBlockId: string | null = null;
-  overBlockId: string | null = null;
-  dropPosition: DropPosition = null;
+  /** The whole drag lifecycle. See `lib/dnd/drag-phase`. */
+  dragPhase: DragPhase = IDLE_PHASE;
 
-  // Drop animation state - position captured when drag ends
-  dropAnimationRect: {
-    top: number;
-    left: number;
-    width: number;
-    height: number;
-  } | null = null;
-  dropAnimationRotation = 0;
-  dropAnimationScale = 1;
-
-  // Editor state
-  pageId = "page-1";
+  pageId = DEFAULT_PAGE_ID;
 
   constructor() {
     makeAutoObservable(this, undefined, { autoBind: true });
+  }
+
+  get activeBlockId(): string | null {
+    return draggingBlockId(this.dragPhase);
+  }
+
+  get settlingBlockId(): string | null {
+    return settlingBlockId(this.dragPhase);
   }
 
   /**
@@ -234,12 +84,6 @@ export class Store {
     });
   }
 
-  toggleVisibility(blockId: string) {
-    this.blocksData = this.blocksData.map((block) =>
-      block.id === blockId ? { ...block, visible: !block.visible } : block
-    );
-  }
-
   setDragSwingSetting<K extends keyof DragSwingSettings>(
     key: K,
     value: DragSwingSettings[K]
@@ -265,54 +109,35 @@ export class Store {
     this.dragSwingSettings = getDragSwingDefaults();
   }
 
-  setDropTarget(overBlockId: string | null, position: DropPosition) {
-    this.overBlockId = overBlockId;
-    this.dropPosition = position;
+  beginDrag(blockId: string) {
+    this.dragPhase = { status: "dragging", blockId };
   }
 
-  clearDropTarget() {
-    this.overBlockId = null;
-    this.dropPosition = null;
+  /**
+   * Hand the card to the settling overlay. Ignored unless a drag is in flight,
+   * which makes it safe whatever order dnd-kit delivers release and cancel in.
+   */
+  beginSettling(origin: SettleOrigin) {
+    if (this.dragPhase.status !== "dragging") {
+      return;
+    }
+    this.dragPhase = {
+      status: "settling",
+      blockId: this.dragPhase.blockId,
+      origin,
+    };
   }
 
-  startDrag(blockId: string) {
-    this.activeBlockId = blockId;
-    this.dropAnimationRect = null;
-    this.dropAnimationRotation = 0;
-    this.dropAnimationScale = 1;
-  }
-
-  // Called when drag ends - start the settling phase
-  startSettling(
-    rect: { top: number; left: number; width: number; height: number },
-    rotation: number,
-    scale: number
-  ) {
-    this.settlingBlockId = this.activeBlockId;
-    this.dropAnimationRect = rect;
-    this.dropAnimationRotation = rotation;
-    this.dropAnimationScale = scale;
-    this.activeBlockId = null;
-    this.clearDropTarget();
-  }
-
-  // Called when drop animation completes
+  /** Return to rest from any phase: settle finished, cancelled, or aborted. */
   endDrag() {
-    this.activeBlockId = null;
-    this.settlingBlockId = null;
-    this.dropAnimationRect = null;
-    this.dropAnimationRotation = 0;
-    this.dropAnimationScale = 1;
+    this.dragPhase = IDLE_PHASE;
   }
 }
 
-// Singleton instance
 const store = new Store();
 
-// Context
 export const StoreContext = createContext<Store>(store);
 
-// Hook
 export function useStore(): Store {
   return useContext(StoreContext);
 }
@@ -322,7 +147,6 @@ export function useStore(): Store {
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-// Provider
 export function StoreProvider({ children }: React.PropsWithChildren) {
   useIsomorphicLayoutEffect(() => store.startPersisting(), []);
 
