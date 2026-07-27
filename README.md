@@ -30,6 +30,7 @@ Open [http://localhost:3000/perfect-dnd](http://localhost:3000/perfect-dnd) (the
 ```bash
 npm run dev                  # Start dev server
 npm run build                # Production build
+npm test                     # Run the unit tests (vitest)
 npm run check-types          # TypeScript type check
 npm run lint                 # Check for lint issues
 npm run lint:fix             # Auto-fix formatting and lint issues
@@ -45,6 +46,7 @@ Architecture notes, including why the drag lifecycle has a single owner, are in
 - [MobX](https://mobx.js.org/) — reactive state management
 - [Tailwind CSS v4](https://tailwindcss.com/) — utility-first styling
 - [Ultracite](https://github.com/haydenbleasel/ultracite) (oxlint + oxfmt) — linting and formatting
+- [Vitest](https://vitest.dev/) — unit tests for the spring physics and drag state machine
 
 ---
 
