@@ -20,7 +20,7 @@ export type SpringConfig = {
   restDistance: number;
 };
 
-export interface SpringSample {
+interface SpringSample {
   value: number;
   velocity: number;
   /** True once the spring is within both `restSpeed` and `restDistance`. */
@@ -53,12 +53,12 @@ const MAX_FRAME_MS = 64;
 const MS_PER_SECOND = 1000;
 
 /**
- * Overlay `source` onto `base`, taking only finite numbers. Everything feeding
- * a spring is untrusted, whether it is a caller's partial config or a persisted
- * payload, and a single NaN reaching the integrator poisons every later frame
- * with no error to trace it back to.
+ * Overlay `source` onto `base`, taking only finite numbers. A single NaN
+ * reaching the integrator poisons every later frame with no error to trace it
+ * back to, so config is filtered rather than trusted. Exercised through
+ * `createSpring` and `setConfig`; it is not part of the module's surface.
  */
-export const pickFiniteNumbers = <T extends Record<string, number>>(
+const pickFiniteNumbers = <T extends Record<string, number>>(
   base: T,
   source: unknown
 ): T => {

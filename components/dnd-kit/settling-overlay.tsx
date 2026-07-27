@@ -13,9 +13,12 @@ import {
 } from "@/lib/dnd/dom";
 import type { SettleOrigin } from "@/lib/dnd/drag-phase";
 import { runSpringLoop } from "@/lib/spring/loop";
-import { POSITION_SPRING_CONFIG, REST_SCALE } from "@/lib/spring/settings";
+import {
+  DRAG_SWING_SETTINGS,
+  POSITION_SPRING_CONFIG,
+  REST_SCALE,
+} from "@/lib/spring/settings";
 import { createSpring } from "@/lib/spring/spring";
-import { useStore } from "@/lib/stores/store";
 import type { BlockData } from "@/types/block";
 
 import { CardInner } from "./card-inner";
@@ -36,17 +39,13 @@ interface SettlingOverlayProps {
  */
 export const SettlingOverlay = observer(
   ({ block, origin, onComplete }: SettlingOverlayProps) => {
-    const store = useStore();
     const positionRef = useRef<HTMLDivElement>(null);
     const transformRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
 
-    // Read through refs so neither can be an effect dependency: a settle is a
+    // Read through a ref so it cannot be an effect dependency: a settle is a
     // one-shot animation, and re-running the effect would cancel the loop and
-    // restart the card mid-flight. Moving a physics slider or re-rendering the
-    // parent must not do that.
-    const settingsRef = useRef(store.dragSwingSettings);
-    settingsRef.current = store.dragSwingSettings;
+    // restart the card mid-flight when the parent re-renders.
     const onCompleteRef = useRef(onComplete);
     onCompleteRef.current = onComplete;
 
@@ -69,11 +68,10 @@ export const SettlingOverlay = observer(
         rect
       );
 
-      const settings = settingsRef.current;
       const xSpring = createSpring(POSITION_SPRING_CONFIG);
       const ySpring = createSpring(POSITION_SPRING_CONFIG);
-      const rotationSpring = createSpring(settings.rotationSpring);
-      const scaleSpring = createSpring(settings.scaleSpring);
+      const rotationSpring = createSpring(DRAG_SWING_SETTINGS.rotationSpring);
+      const scaleSpring = createSpring(DRAG_SWING_SETTINGS.scaleSpring);
 
       xSpring.setCurrent(rect.left);
       xSpring.setTarget(targetLeft);

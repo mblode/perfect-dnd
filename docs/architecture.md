@@ -7,7 +7,7 @@ unambiguous; everything else is deliberately small.
 ## Context and constraints
 
 - One deployable surface: a static Next.js App Router page under `basePath: /perfect-dnd`.
-- No backend, no auth, no tenancy. State is a demo list plus physics settings in `localStorage`.
+- No backend, no auth, no tenancy. State is a demo list persisted to `localStorage`; drag physics is a set of constants in code.
 - Team size 1. Quality bar is "the drag feels right and never strands a card".
 - Type check, lint, unit tests, and a browser drag are the gates.
 
@@ -85,9 +85,16 @@ Now:
   a backgrounded tab (where rAF is frozen) lands the card on target when the tab
   returns rather than resuming a stale animation.
 - `RotationSpringSettings` *is* `SpringConfig`, and `ScaleSpringSettings` is it
-  without `mass`, so settings pass straight to `createSpring`. Three
-  field-by-field copies are gone, and with them the nine-entry effect dependency
-  array they forced in the settling overlay.
+  without `mass`, so `DRAG_SWING_SETTINGS` passes straight to `createSpring`.
+  Three field-by-field copies are gone, and with them the nine-entry effect
+  dependency array they forced in the settling overlay.
+- Physics settings are module constants, not store state. They were observable
+  and persisted so a settings panel could drive them live; no panel was ever
+  built, so the setters, their persistence, and the `autorun` that reapplied
+  them were dead weight. Removing them also took `useStore` out of
+  `useDragSwing` and the settling overlay entirely. Rebuilding a live panel
+  means putting `DragSwingSettings` back on the store and restoring that
+  `autorun`; `createSpring.setConfig` already supports reconfiguration mid-flight.
 
 ## DOM contract
 
@@ -100,9 +107,9 @@ noted in that file because CSS cannot be type-checked against it.
 ## Frontend boundaries
 
 - Server Components by default; `"use client"` sits on the interactive leaves.
-- One owner per piece of data. Server-less here, so the store owns list order
-  and settings, component state owns nothing cross-cutting, and physics lives in
-  refs precisely because it must not be state.
+- One owner per piece of data. Server-less here, so the store owns list order,
+  component state owns nothing cross-cutting, and physics lives in refs and
+  module constants precisely because it must not be state.
 - `useDragSwing` has no `onDragStart`. The overlay that mounts it renders only
   after a drag is in flight, so dnd-kit has already dispatched `onDragStart`
   before a monitor can register. The old handler was ~50 lines of unreachable
@@ -141,6 +148,8 @@ left behind.
 | `lint:fix`, `format:check` | Called `biome`, which is not a dependency | Use ultracite / oxfmt |
 | Suppressions | A `biome-ignore` in an oxlint repo, suppressing nothing | `oxlint-disable-next-line` with a reason |
 | Tests | No framework, no `test` script | Vitest over the physics and the drag state machine |
+| Dead code | Found by hand | `npm run knip` over files, exports, and dependencies |
+| Phantom deps | `@dnd-kit/utilities` imported but undeclared, relying on hoisting | Declared in `package.json` |
 
 The stale comment claiming the source "predates Ultracite's strict rule set"
 was wrong: enabling the full set produced exactly one violation, in a file with
@@ -148,24 +157,21 @@ a suppression that no longer matched the linter.
 
 ## Rollout and rollback
 
-One static page, no migrations, no persisted-schema change: `dragPhase` is
-runtime-only and `localStorage` still holds the same `blocksData` and
-`dragSwingSettings` shape, so an old payload loads unchanged and a rollback
-needs no data work. Rollback is `git revert`.
+One static page and no migrations. `dragPhase` is runtime-only, and the
+persisted payload only ever shrank: `blocksData` keeps its shape, and the
+`dragSwingSettings` key an older build wrote is simply no longer read. An
+existing payload still loads its block order, and rolling back re-reads a key
+that is still there in anything written before this change. Rollback is
+`git revert`; no data work either way.
 
 ## Open risks and follow-ups
 
-- **No settings UI.** The store exposes setters, persistence, and live
-  reconfiguration, and nothing drives them. This is the one remaining dead
-  surface: `setDragSwingSetting`, `setRotationSpringSetting`,
-  `setScaleSpringSetting`, and `resetDragSwingSettings` have no callers. They
-  are kept because deleting them also makes settings persistence, the
-  finite-number validation, and the live `autorun` reconfiguration pointless,
-  which removes the tunability the project exists to demonstrate. Build the
-  panel or delete the whole subsystem; do not leave it half-owned much longer.
-  The six shadcn primitives that would have built that panel were deleted, along
-  with the five Radix and CVA dependencies that existed only for them;
-  `components.json` remains, so `npx shadcn add` brings any of them back.
+- **No settings UI, and no longer any hooks for one.** The store setters,
+  settings persistence, and the live `autorun` were deleted along with the six
+  shadcn primitives and the five Radix/CVA dependencies that existed only for
+  the panel that was never built. `components.json` remains, so `npx shadcn add`
+  restores the primitives. See Physics boundaries for what to restore on the
+  store side.
 - **Drop-position indicator removed.** `overBlockId` / `dropPosition` were
   written on every drag-over and never read. Deleted rather than left as a
   half-built feature; re-add with the indicator that needs it.

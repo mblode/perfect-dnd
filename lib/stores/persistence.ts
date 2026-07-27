@@ -7,9 +7,6 @@
  * blank app is not.
  */
 
-import type { DragSwingSettings } from "@/lib/spring/settings";
-import { getDragSwingDefaults } from "@/lib/spring/settings";
-import { pickFiniteNumbers } from "@/lib/spring/spring";
 import type { BlockData } from "@/types/block";
 
 const STORAGE_KEY = "perfect-dnd-store";
@@ -19,7 +16,6 @@ export const PERSIST_DEBOUNCE_MS = 200;
 
 export interface PersistedState {
   blocksData: BlockData[];
-  dragSwingSettings: DragSwingSettings;
 }
 
 const BLOCK_TYPES = new Set<BlockData["type"]>(["link", "header", "text"]);
@@ -37,20 +33,6 @@ const isBlockData = (value: unknown): value is BlockData => {
     typeof block.visible === "boolean" &&
     BLOCK_TYPES.has(block.type as BlockData["type"])
   );
-};
-
-/** Shares `pickFiniteNumbers` with the spring itself: a persisted payload is
- * exactly as untrusted as a caller-supplied config, and both guard the same
- * integrator. */
-const mergeDragSwingSettings = (value: unknown): DragSwingSettings => {
-  const { rotationSpring, scaleSpring, ...scalars } = getDragSwingDefaults();
-  const source = (value ?? {}) as Record<string, unknown>;
-
-  return {
-    ...pickFiniteNumbers(scalars, source),
-    rotationSpring: pickFiniteNumbers(rotationSpring, source.rotationSpring),
-    scaleSpring: pickFiniteNumbers(scaleSpring, source.scaleSpring),
-  };
 };
 
 /** localStorage is synchronous, so reading it needs no async plumbing. */
@@ -78,7 +60,9 @@ export const readPersistedState = (): Partial<PersistedState> => {
     return {};
   }
 
-  const { blocksData, dragSwingSettings } = parsed as Record<string, unknown>;
+  // Keys this build no longer writes (an older one persisted drag physics here)
+  // are simply not read, so an existing payload still loads its block order.
+  const { blocksData } = parsed as Record<string, unknown>;
 
   return {
     // The length check is not redundant: `[].every()` is vacuously true, and an
@@ -90,10 +74,6 @@ export const readPersistedState = (): Partial<PersistedState> => {
       blocksData.every(isBlockData)
         ? blocksData
         : undefined,
-    dragSwingSettings:
-      dragSwingSettings === undefined
-        ? undefined
-        : mergeDragSwingSettings(dragSwingSettings),
   };
 };
 

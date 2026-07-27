@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSpring, pickFiniteNumbers } from "./spring";
+import { createSpring } from "./spring";
 
 const UNDERDAMPED = {
   stiffness: 100,
@@ -72,57 +72,28 @@ describe("createSpring", () => {
     expect(spring.step(128)).toEqual({ value: 5, velocity: 0, atRest: false });
   });
 
-  it("ignores a non-finite config value instead of poisoning the integrator", () => {
-    // Settings arrive from persisted JSON. One NaN reaching the integrator
-    // makes every later frame NaN, with no error pointing back to the source.
-    const poisoned = createSpring(CRITICAL);
-    poisoned.setConfig({ stiffness: Number.NaN, damping: Number.NaN });
-    poisoned.setTarget(100);
-    poisoned.step(0);
-    const afterPoison = poisoned.step(64);
-
-    const clean = createSpring(CRITICAL);
-    clean.setTarget(100);
-    clean.step(0);
-    const afterClean = clean.step(64);
-
-    expect(Number.isFinite(afterPoison.value)).toBe(true);
-    expect(afterPoison.value).toBeCloseTo(afterClean.value);
-  });
-});
-
-describe("pickFiniteNumbers", () => {
-  it("takes finite overrides and keeps the base for everything else", () => {
-    expect(pickFiniteNumbers({ a: 1, b: 2 }, { a: 5 })).toEqual({ a: 5, b: 2 });
-  });
-
   it.each([
     ["NaN", Number.NaN],
     ["infinity", Number.POSITIVE_INFINITY],
-    ["a string", "5"],
-    ["null", null],
-    ["undefined", undefined],
-  ])("rejects %s", (_label, value) => {
-    expect(pickFiniteNumbers({ a: 1 }, { a: value })).toEqual({ a: 1 });
-  });
+    ["negative infinity", Number.NEGATIVE_INFINITY],
+  ])(
+    "ignores a %s config value rather than poisoning the integrator",
+    (_label, value) => {
+      // One non-finite value reaching the integrator makes every later frame NaN,
+      // with no error pointing back at the source.
+      const poisoned = createSpring(CRITICAL);
+      poisoned.setConfig({ stiffness: value, damping: value, mass: value });
+      poisoned.setTarget(100);
+      poisoned.step(0);
+      const afterPoison = poisoned.step(64);
 
-  it("ignores keys the base does not declare", () => {
-    // Stops an old or hand-edited payload widening the config shape.
-    expect(pickFiniteNumbers({ a: 1 }, { rogue: 9 })).toEqual({ a: 1 });
-  });
+      const clean = createSpring(CRITICAL);
+      clean.setTarget(100);
+      clean.step(0);
+      const afterClean = clean.step(64);
 
-  it.each([
-    ["null", null],
-    ["a primitive", 7],
-    ["undefined", undefined],
-  ])("falls back to the base when the source is %s", (_label, source) => {
-    expect(pickFiniteNumbers({ a: 1 }, source)).toEqual({ a: 1 });
-  });
-
-  it("returns a copy so the base cannot be mutated through it", () => {
-    const base = { a: 1 };
-    const merged = pickFiniteNumbers(base, { a: 5 });
-    expect(merged).not.toBe(base);
-    expect(base.a).toBe(1);
-  });
+      expect(Number.isFinite(afterPoison.value)).toBe(true);
+      expect(afterPoison.value).toBeCloseTo(afterClean.value);
+    }
+  );
 });

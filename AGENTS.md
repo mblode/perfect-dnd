@@ -11,6 +11,7 @@ driven by a hand-rolled spring simulation. There is no backend. `check-types`,
 - `npm test` / `npm run test:watch` — vitest, node environment.
 - `npm run check-types` — `tsc --noEmit`.
 - `npm run lint` / `npm run lint:fix` — Ultracite (oxlint + oxfmt).
+- `npm run knip` — unused files, exports, and dependencies. Run it after deleting code.
 - `npm run format` / `npm run format:check` — oxfmt.
 
 Lefthook runs `npx ultracite check` on staged files pre-commit.
@@ -40,9 +41,13 @@ means editing the CSS too.
   mounts it only renders after a drag is already in flight, so dnd-kit has
   already dispatched `onDragStart` before a monitor can register. Mounting is
   the drag-start signal.
-- Spring settings come from persisted, untrusted JSON. `lib/stores/persistence.ts`
-  copies only finite numbers; a NaN reaching the integrator poisons every later
-  frame with no error.
+- Drag physics is a set of constants in `lib/spring/settings.ts`, not state.
+  There is no settings UI and the store does not hold them; edit and reload.
+- `createSpring` filters its config down to finite numbers on the way in. A NaN
+  reaching the integrator poisons every later frame with no error, so do not
+  route config around that filter.
+- `localStorage` holds block order only. Older payloads also stored drag
+  physics; those keys are simply not read, so no migration is needed.
 - dnd-kit logs a hydration mismatch on `aria-describedby` in dev. Its
   `useUniqueId` uses a module-level counter rather than `useId`, so server and
   client disagree. It is a library bug, not ours; do not try to "fix" it in app code.
