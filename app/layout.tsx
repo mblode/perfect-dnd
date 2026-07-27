@@ -42,6 +42,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link href="https://us.i.posthog.com" rel="preconnect" />
+        <link href="https://us-assets.i.posthog.com" rel="dns-prefetch" />
+      </head>
       <body className={`${inter.variable} antialiased`}>
         <StoreProvider>{children}</StoreProvider>
         <footer className="flex justify-center py-6">
