@@ -11,20 +11,30 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const siteTitle = "Perfect DnD: drag and drop made simple";
+const siteDescription =
+  "A dnd-kit demo with the drag, drop, and settle animations tuned until reordering a list feels right.";
+
 export const metadata: Metadata = {
   alternates: {
     canonical: "/perfect-dnd",
   },
   authors: [{ name: "Matthew Blode", url: "https://blode.co" }],
-  description: "Drag and drop made simple",
+  description: siteDescription,
   metadataBase: new URL("https://blode.co"),
   openGraph: {
-    description: "Drag and drop made simple",
-    title: "Perfect DnD",
+    description: siteDescription,
+    siteName: "Perfect DnD",
+    title: siteTitle,
     type: "website",
     url: "/perfect-dnd",
   },
-  title: "Perfect DnD",
+  title: siteTitle,
+  twitter: {
+    card: "summary_large_image",
+    description: siteDescription,
+    title: siteTitle,
+  },
 };
 
 export const viewport: Viewport = {
