@@ -7,7 +7,7 @@ export function CraftedBy() {
       target="_blank"
     >
       <span>Crafted by</span>
-      {/* biome-ignore lint/performance/noImgElement: self-hosted 20px avatar, plain img avoids next/image overhead */}
+      {/* oxlint-disable-next-line next/no-img-element -- self-hosted 20px avatar; next/image would add a loader round trip for nothing */}
       <img
         alt="Matthew Blode"
         className="rounded-full"

@@ -123,12 +123,6 @@
 
 /* iOS Safari mobile drag-and-drop optimizations */
 
-/* Safe area support for notched iPhones */
-:root {
-  --safe-area-inset-top: env(safe-area-inset-top, 0px);
-  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
-}
-
 /* Touch handling for sortable items - prevents scroll/context menu conflicts on iOS Safari */
 [data-sortable-item] {
   touch-action: manipulation;
@@ -142,9 +136,4 @@
   will-change: transform;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-}
-
-/* Editor container safe area padding */
-.editor-container {
-  padding-bottom: var(--safe-area-inset-bottom);
 }
