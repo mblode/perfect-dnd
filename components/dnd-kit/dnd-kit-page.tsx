@@ -4,11 +4,8 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
-  type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
-  type DropAnimation,
-  defaultDropAnimationSideEffects,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -19,7 +16,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { observer } from "mobx-react-lite";
+import { useEffect } from "react";
 
+import type { SettleOrigin } from "@/lib/dnd/drag-phase";
 import {
   TrackedMouseSensor,
   TrackedTouchSensor,
@@ -30,6 +29,20 @@ import { ContentCard } from "./content-card";
 import { DragSwingOverlay } from "./drag-swing-overlay";
 import { SettlingOverlay } from "./settling-overlay";
 
+/** Pointer travel before a mouse drag starts, so a click stays a click. */
+const MOUSE_ACTIVATION_DISTANCE_PX = 10;
+
+/** Hold before a touch drag starts. Below this, the gesture is a page scroll. */
+const TOUCH_ACTIVATION_DELAY_MS = 250;
+
+/** How far a finger may drift during that hold before it counts as a scroll. */
+const TOUCH_ACTIVATION_TOLERANCE_PX = 5;
+
+/**
+ * Owns the drag lifecycle. The overlays report what the pointer did; every
+ * transition between idle, dragging, and settling is made here, so the phases
+ * cannot race each other.
+ */
 export const EditorPage = observer(() => {
   const store = useStore();
   const pageId = store.pageId;
@@ -40,127 +53,128 @@ export const EditorPage = observer(() => {
   const sortedIds = sortedBlocks.map((block) => block.id);
   const blockById = new Map(sortedBlocks.map((block) => [block.id, block]));
 
-  // MouseSensor + TouchSensor (not PointerSensor) per dnd-kit best practices
+  // MouseSensor + TouchSensor rather than PointerSensor, per dnd-kit guidance:
+  // the two input types need different activation rules.
   const sensors = useSensors(
     useSensor(TrackedMouseSensor, {
-      activationConstraint: { distance: 10 },
+      activationConstraint: { distance: MOUSE_ACTIVATION_DISTANCE_PX },
     }),
     useSensor(TrackedTouchSensor, {
       activationConstraint: {
-        delay: 250, // Hold to drag - distinguishes scroll from drag on iOS
-        tolerance: 5,
+        delay: TOUCH_ACTIVATION_DELAY_MS,
+        tolerance: TOUCH_ACTIVATION_TOLERANCE_PX,
       },
     }),
     useSensor(KeyboardSensor)
   );
 
-  const _dropAnimation: DropAnimation = {
-    duration: 350,
-    easing: "cubic-bezier(0.22, 1.5, 0.36, 1)",
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: { active: { opacity: "0" } },
-    }),
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
-    store.startDrag(event.active.id as string);
+    store.beginDrag(String(event.active.id));
   };
 
-  const handleDragOver = (event: DragOverEvent) => {
+  // Reordering only. The card keeps flying after the pointer lifts, so the
+  // phase is advanced by the overlay's release, not here.
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
     if (!over || active.id === over.id) {
-      store.clearDropTarget();
       return;
     }
 
-    const activeIndex = sortedBlocks.findIndex((b) => b.id === active.id);
-    const overIndex = sortedBlocks.findIndex((b) => b.id === over.id);
-    const position = activeIndex < overIndex ? "below" : "above";
-
-    store.setDropTarget(over.id as string, position);
-  };
-
-  const activeBlock = store.activeBlockId
-    ? (blockById.get(store.activeBlockId) ?? null)
-    : null;
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      const oldIndex = sortedBlocks.findIndex((b) => b.id === active.id);
-      const newIndex = sortedBlocks.findIndex((b) => b.id === over.id);
-      const newOrder = arrayMove(sortedIds, oldIndex, newIndex);
-      store.reorderBlocks(pageId, newOrder);
+    const from = sortedIds.indexOf(String(active.id));
+    const to = sortedIds.indexOf(String(over.id));
+    if (from === -1 || to === -1) {
+      return;
     }
 
-    // Clear drop target but keep activeBlockId until animation completes
-    store.clearDropTarget();
+    store.reorderBlocks(pageId, arrayMove(sortedIds, from, to));
   };
 
-  const handleDragCancel = () => {
-    store.clearDropTarget();
-    store.endDrag();
+  /**
+   * The pointer came up. An origin means the card is somewhere visible and
+   * should fly home; null means there is nothing to animate, so go straight
+   * to rest rather than leaving the card stranded.
+   *
+   * Not memoised: both overlays read their callbacks through refs, so a fresh
+   * identity each render cannot restart an animation.
+   */
+  const handleRelease = (origin: SettleOrigin | null) => {
+    if (origin) {
+      store.beginSettling(origin);
+    } else {
+      store.endDrag();
+    }
   };
 
-  const handleSettlingComplete = () => {
-    store.endDrag();
-  };
+  const handleSettled = () => store.endDrag();
 
-  // Get the settling block data
-  const settlingBlock = store.settlingBlockId
-    ? (blockById.get(store.settlingBlockId) ?? null)
-    : null;
+  /**
+   * Covers a cancel that lands before the overlay has mounted to report one.
+   * Safe to overlap with the overlay's own cancel: both resolve to idle, so
+   * the order dnd-kit delivers them in cannot change the outcome.
+   */
+  const handleDragCancel = () => store.endDrag();
+
+  const phase = store.dragPhase;
+  const activeBlock = store.activeBlockId
+    ? blockById.get(store.activeBlockId)
+    : undefined;
+  const settlingBlock =
+    phase.status === "settling" ? blockById.get(phase.blockId) : undefined;
+
+  /**
+   * Both overlays report completion, so if the block they describe disappears
+   * the overlay never mounts and the phase would stay non-idle forever, leaving
+   * the list card stuck as an empty placeholder. Nothing removes a block today;
+   * this keeps the "never strand a card" invariant true if anything ever does.
+   */
+  const phaseBlockMissing =
+    phase.status !== "idle" && !blockById.has(phase.blockId);
+
+  useEffect(() => {
+    if (phaseBlockMissing) {
+      store.endDrag();
+    }
+  }, [phaseBlockMissing, store]);
 
   return (
     <DndContext
       collisionDetection={closestCenter}
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
       onDragStart={handleDragStart}
       sensors={sensors}
     >
-      <div className="flex min-h-screen w-full flex-col">
-        <main className="flex-1">
-          <div className="mx-auto w-full max-w-6xl">
-            <div className="flex flex-col gap-6 p-4">
-              <div className="min-w-0 flex-1 overflow-auto">
-                <div className="mx-auto max-w-lg py-2">
-                  <header className="mb-6">
-                    <h1 className="font-semibold text-2xl tracking-tight">
-                      Perfect DnD
-                    </h1>
-                    <p className="mt-1 text-muted-foreground text-sm">
-                      Pick up a block and drop it somewhere else. Drag and drop
-                      made simple, built on dnd-kit.
-                    </p>
-                  </header>
-                  <SortableContext
-                    items={sortedIds}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {sortedBlocks.map((block) => (
-                      <ContentCard block={block} key={block.id} />
-                    ))}
-                  </SortableContext>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <main className="mx-auto min-h-screen w-full max-w-lg px-4 py-6">
+        <header className="mb-6">
+          <h1 className="font-semibold text-2xl tracking-tight">Perfect DnD</h1>
+          <p className="mt-1 text-muted-foreground text-sm">
+            Pick up a block and drop it somewhere else. Drag and drop made
+            simple, built on dnd-kit.
+          </p>
+        </header>
 
+        <SortableContext
+          items={sortedIds}
+          strategy={verticalListSortingStrategy}
+        >
+          {sortedBlocks.map((block) => (
+            <ContentCard block={block} key={block.id} />
+          ))}
+        </SortableContext>
+      </main>
+
+      {/* dropAnimation is null: the settling overlay below replaces it. */}
       <DragOverlay dropAnimation={null}>
-        {activeBlock && <DragSwingOverlay block={activeBlock} />}
+        {activeBlock && (
+          <DragSwingOverlay block={activeBlock} onRelease={handleRelease} />
+        )}
       </DragOverlay>
 
-      {/* Settling overlay - renders outside dnd-kit's control */}
-      {settlingBlock && (
+      {phase.status === "settling" && settlingBlock && (
         <SettlingOverlay
           block={settlingBlock}
-          onAnimationComplete={handleSettlingComplete}
+          onComplete={handleSettled}
+          origin={phase.origin}
         />
       )}
     </DndContext>
