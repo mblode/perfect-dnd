@@ -8,9 +8,7 @@
     "start": "next start",
     "prepare": "lefthook install || true",
     "lint": "ultracite check",
-    "lint:fix": "biome check --write .",
-    "format": "ultracite fix",
-    "format:check": "biome format .",
+    "lint:fix": "ultracite fix",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
