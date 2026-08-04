@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   assetPrefix: basePath,
   basePath,
   reactCompiler: true,
+  experimental: {
+    turbopackRustReactCompiler: true,
+  },
   redirects() {
     return Promise.resolve([
       {
