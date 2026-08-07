@@ -8,6 +8,10 @@ Drag a card fast and it leans into the motion, then springs back into its slot w
 
 </div>
 
+<p align="center">
+  <img alt="Cards mid-drag, tilted toward the cursor" src=".github/assets/screenshot.png" width="800" />
+</p>
+
 ## Demo
 
 A sortable list you can throw around with a mouse, a finger, or the keyboard.
