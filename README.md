@@ -18,7 +18,7 @@ A sortable list you can throw around with a mouse, a finger, or the keyboard.
 
 <p>
 <a href="https://blode.co/perfect-dnd">
-<img alt="View demo" src=".github/assets/demo.svg" width="200" />
+<img alt="View the demo" src=".github/assets/demo.svg" width="200" />
 </a>
 </p>
 
