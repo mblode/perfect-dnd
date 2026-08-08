@@ -69,7 +69,13 @@ export default function RootLayout({
       <head>
         <link href={process.env.NEXT_PUBLIC_POSTHOG_HOST} rel="preconnect" />
       </head>
-      <body className="font-sans antialiased">
+      {/*
+        Column layout so the footer lands at the bottom of the viewport rather
+        than below it: main grows to fill the space, the footer takes its own
+        height. Both drag overlays are position: fixed, so neither becomes a
+        flex item here. dvh, not vh, so a mobile toolbar cannot hide the footer.
+      */}
+      <body className="flex min-h-dvh flex-col font-sans antialiased">
         <StoreProvider>{children}</StoreProvider>
         <footer className="flex justify-center py-6">
           <CraftedBy />
