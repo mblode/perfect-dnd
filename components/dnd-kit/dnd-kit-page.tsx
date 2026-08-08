@@ -144,7 +144,7 @@ export const EditorPage = observer(() => {
       onDragStart={handleDragStart}
       sensors={sensors}
     >
-      <main className="mx-auto min-h-screen w-full max-w-lg px-4 py-6">
+      <main className="mx-auto w-full max-w-lg flex-1 px-4 py-6">
         <header className="mb-6">
           <h1 className="font-semibold text-2xl tracking-tight">Perfect DnD</h1>
           <p className="mt-1 text-muted-foreground text-sm">
