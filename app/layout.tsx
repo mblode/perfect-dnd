@@ -1,14 +1,28 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 
 import "./globals.css";
-import { Inter } from "next/font/google";
-
 import { CraftedBy } from "@/components/crafted-by";
 import { StoreProvider } from "@/lib/stores/store";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
+// Glide 2.0.0 (https://github.com/mblode/glide). One variable file per style
+// covers the whole weight axis, so each declares 100-950 rather than a face per
+// weight.
+const glide = localFont({
+  src: [
+    { path: "./fonts/glide-variable.woff2", style: "normal" },
+    { path: "./fonts/glide-variable-italic.woff2", style: "italic" },
+  ],
+  variable: "--font-glide",
+  weight: "100 950",
+  display: "swap",
+});
+
+const glideMono = localFont({
+  src: "./fonts/glide-mono.woff2",
+  variable: "--font-glide-mono",
+  weight: "400",
+  display: "swap",
 });
 
 const siteTitle = "Perfect DnD: drag and drop made simple";
@@ -51,11 +65,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html className={`${glide.variable} ${glideMono.variable}`} lang="en">
       <head>
         <link href={process.env.NEXT_PUBLIC_POSTHOG_HOST} rel="preconnect" />
       </head>
-      <body className={`${inter.variable} antialiased`}>
+      <body className="font-sans antialiased">
         <StoreProvider>{children}</StoreProvider>
         <footer className="flex justify-center py-6">
           <CraftedBy />
