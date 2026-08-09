@@ -34,7 +34,13 @@ const PROJECTS = `${HOME}/projects`;
 
 const Separator = () => (
   // Decorative: the <ol> already conveys the structure to assistive tech.
-  <span aria-hidden className="select-none opacity-40">
+  //
+  // Spelled `aria-hidden="true"`, not bare. JSX would render the bare form as
+  // `aria-hidden="true"` anyway, but this component gets hand-translated into
+  // static HTML for the non-React zones (marx, burger), and in HTML
+  // `aria-hidden=""` is an invalid value for an enumerated attribute, so it is
+  // treated as unset and every `›` gets announced.
+  <span aria-hidden="true" className="select-none opacity-40">
     ›
   </span>
 );

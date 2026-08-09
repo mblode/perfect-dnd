@@ -14,9 +14,12 @@ export function CraftedBy() {
         rel="author"
       >
         <span>Crafted by</span>
+        {/* Decorative, so alt is empty: the link's own text already reads
+            "Matthew Blode", and naming the image too makes the link's
+            accessible name "Crafted by Matthew Blode Matthew Blode". */}
         {/* oxlint-disable-next-line next/no-img-element -- self-hosted 20px avatar; next/image would add a loader round trip for nothing */}
         <img
-          alt="Matthew Blode"
+          alt=""
           className="rounded-full"
           height={20}
           loading="lazy"
