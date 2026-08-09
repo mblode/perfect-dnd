@@ -34,11 +34,25 @@ export const metadata: Metadata = {
     canonical: "/perfect-dnd",
   },
   authors: [{ name: "Matthew Blode", url: "https://blode.co" }],
+  creator: "Matthew Blode",
   description: siteDescription,
+  /*
+   * The bare origin, NOT the zone URL, despite zone-conventions.md Rule 11.
+   *
+   * That rule predates this Next version. Next 16 already prefixes `basePath`
+   * onto `app/opengraph-image.png` and onto the relative `canonical` and
+   * `openGraph.url` below, so a bare origin resolves all three correctly. Set
+   * this to https://blode.co/perfect-dnd and the prefix is applied twice:
+   * blode.co/perfect-dnd/perfect-dnd/opengraph-image.png, which is the doubled
+   * path `glide` shipped for months. Verified against `npm run build` output,
+   * not reasoned about.
+   */
   metadataBase: new URL("https://blode.co"),
   openGraph: {
     description: siteDescription,
-    siteName: "Perfect DnD",
+    // Every blode.co path shares one site name. The product is already in
+    // og:title, so this slot says who made it. See zone-conventions.md Rule 9.
+    siteName: "Matthew Blode",
     title: siteTitle,
     type: "website",
     url: "/perfect-dnd",
@@ -46,7 +60,9 @@ export const metadata: Metadata = {
   title: siteTitle,
   twitter: {
     card: "summary_large_image",
+    creator: "@mattblode",
     description: siteDescription,
+    site: "@mattblode",
     title: siteTitle,
   },
 };
