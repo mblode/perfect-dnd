@@ -25,29 +25,26 @@ const glideMono = localFont({
   display: "swap",
 });
 
+const siteUrl = "https://blode.co/perfect-dnd";
 const siteTitle = "Perfect DnD: drag and drop made simple";
 const siteDescription =
   "A dnd-kit demo with the drag, drop, and settle animations tuned until reordering a list feels right.";
 
 export const metadata: Metadata = {
   alternates: {
-    canonical: "/perfect-dnd",
+    canonical: siteUrl,
   },
   authors: [{ name: "Matthew Blode", url: "https://blode.co" }],
   creator: "Matthew Blode",
   description: siteDescription,
-  /*
-   * The bare origin, NOT the zone URL, despite zone-conventions.md Rule 11.
-   *
-   * That rule predates this Next version. Next 16 already prefixes `basePath`
-   * onto `app/opengraph-image.png` and onto the relative `canonical` and
-   * `openGraph.url` below, so a bare origin resolves all three correctly. Set
-   * this to https://blode.co/perfect-dnd and the prefix is applied twice:
-   * blode.co/perfect-dnd/perfect-dnd/opengraph-image.png, which is the doubled
-   * path `glide` shipped for months. Verified against `npm run build` output,
-   * not reasoned about.
-   */
-  metadataBase: new URL("https://blode.co"),
+  // The zone URL, not the bare origin (Rule 11). Only correct because the card
+  // is a generated `opengraph-image.tsx` route: Next does not prefix those with
+  // `basePath`, so `metadataBase` supplies the prefix exactly once. Against the
+  // static PNG this replaced, the two would have stacked into
+  // `/perfect-dnd/perfect-dnd/…`.
+  metadataBase: new URL(siteUrl),
+  // No `images` here: `app/opengraph-image.tsx` is the card. Next reuses it for
+  // `twitter:image` too when there is no `twitter-image` file.
   openGraph: {
     description: siteDescription,
     // Every blode.co path shares one site name. The product is already in
@@ -55,7 +52,7 @@ export const metadata: Metadata = {
     siteName: "Matthew Blode",
     title: siteTitle,
     type: "website",
-    url: "/perfect-dnd",
+    url: siteUrl,
   },
   title: siteTitle,
   twitter: {
