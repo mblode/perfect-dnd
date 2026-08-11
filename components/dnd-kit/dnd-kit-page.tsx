@@ -18,7 +18,6 @@ import {
 import { observer } from "mobx-react-lite";
 import { useEffect } from "react";
 
-import { GitHubLink } from "@/components/github-link";
 import type { SettleOrigin } from "@/lib/dnd/drag-phase";
 import {
   TrackedMouseSensor,
@@ -146,17 +145,12 @@ export const EditorPage = observer(() => {
       sensors={sensors}
     >
       <main className="mx-auto w-full max-w-lg flex-1 px-4 py-6">
-        <header className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-semibold text-2xl tracking-tight">
-              Perfect DnD
-            </h1>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Pick up a block and drop it somewhere else. Drag and drop made
-              simple, built on dnd-kit.
-            </p>
-          </div>
-          <GitHubLink />
+        <header className="mb-6">
+          <h1 className="font-semibold text-2xl tracking-tight">Perfect DnD</h1>
+          <p className="mt-1 text-muted-foreground text-sm">
+            Pick up a block and drop it somewhere else. Drag and drop made
+            simple, built on dnd-kit.
+          </p>
         </header>
 
         <SortableContext
