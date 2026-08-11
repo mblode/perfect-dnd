@@ -1,4 +1,5 @@
 import { EditorPage } from "@/components/dnd-kit/dnd-kit-page";
+import { GitHubLink } from "@/components/github-link";
 import { ZoneBreadcrumb } from "@/components/zone-breadcrumb";
 
 const SITE_URL = "https://blode.co/perfect-dnd";
@@ -68,8 +69,9 @@ export default function Page() {
       {/* Same width as the list below it. `product` matches the third crumb
           exactly: Google reads a mismatch between the visible trail and the
           markup as an error. */}
-      <div className="mx-auto w-full max-w-lg px-4 pt-6">
+      <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-4 px-4 pt-6">
         <ZoneBreadcrumb product="Perfect DnD" />
+        <GitHubLink />
       </div>
 
       <EditorPage />
