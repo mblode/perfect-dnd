@@ -1,4 +1,5 @@
 import { renderZoneOgImage } from "@/app/og-image-shared";
+import { OgLogo } from "@/app/og-logo";
 
 export {
   OG_CONTENT_TYPE as contentType,
@@ -19,11 +20,9 @@ export const alt = "Perfect DnD: drag and drop made simple";
  */
 export default function OpengraphImage() {
   return renderZoneOgImage({
-    badge: "PERFECT DND",
-    eyebrow: "blode.co/perfect-dnd",
-    // Shorter than the meta description, which runs long for the SERP. A card
-    // is read in a feed, at a glance.
-    subtitle: "Drag, drop, and settle animations tuned until lists feel right.",
-    title: "Perfect DnD: drag and drop made simple",
+    background: "#f8fafc",
+    color: "#0f172a",
+    logo: <OgLogo />,
+    title: "Perfect DnD",
   });
 }
