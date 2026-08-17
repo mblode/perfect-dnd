@@ -5,7 +5,7 @@ import "./globals.css";
 import { CraftedBy } from "@/components/crafted-by";
 import { StoreProvider } from "@/lib/stores/store";
 
-// Glide 2.0.0 (https://github.com/mblode/glide). One variable file per style
+// Glide 4.0.2 (https://github.com/mblode/glide). One variable file per style
 // covers the whole weight axis, so each declares 100-950 rather than a face per
 // weight.
 const glide = localFont({
